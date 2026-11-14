@@ -1,0 +1,54 @@
+# Healjour Integration Studio (Next.js): run and deploy
+
+The UI and the API are one Next.js app.
+
+- `src/app/` holds the page (the studio UI).
+- `src/pages/api/[...path].ts` sends every `/api/*` request to the Express app in `server/app.ts`.
+- `server/core/` is unchanged business logic (Flabs, pipeline, store, settings).
+
+## Run locally
+
+```bash
+npm install --legacy-peer-deps
+npm run dev
+```
+
+Open http://localhost:5174. The API is on the same address (`/api/health`).
+
+Production build check:
+
+```bash
+npm run build
+npm start
+```
+
+Locally, the Settings screen can still create the encryption key and save a public address. They are written to `.secrets/app.env` (git-ignored).
+
+## Deploy on Vercel
+
+1. Push this folder to a GitHub repository (without `.secrets/`, `node_modules/`, `.next/`; these are in `.gitignore`).
+2. In Vercel, choose **Add New → Project** and import the repository. Vercel detects Next.js. Keep the default build command (`next build`).
+3. In **Project Settings → Environment Variables**, add:
+
+   | Name | Value |
+   |---|---|
+   | `MONGODB_URI` | Your MongoDB Atlas connection string (`mongodb+srv://...`) |
+   | `MONGODB_DB` | Optional database name (default `healjour_integration_studio`) |
+   | `FLABS_SECRET_KEY` | A 32-byte base64 key. Use the same key as your local `.secrets/app.env` if you want to keep secrets that were encrypted locally, or make a new one. |
+   | `PUBLIC_BASE_URL` | The deployed address, for example `https://your-app.vercel.app` or your own domain |
+
+   Make a new key with:
+
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+   ```
+
+4. Deploy. Then open `https://<your-domain>/api/health`. It should show `"storage": { "kind": "mongodb", "durable": true }`.
+5. In MongoDB Atlas → **Network Access**, allow Vercel to connect (for a start, `0.0.0.0/0`, protected by your database user and password).
+6. Open the app, go to **Test Catalog → Flabs CRM accounts**, connect the account, then press **Register webhooks**. Flabs will now call `https://<your-domain>/api/webhooks/flabs/<token>`.
+
+## Notes for Vercel
+
+- MongoDB is required there. Without it, each serverless instance keeps its own memory and data disappears.
+- The Settings screen cannot write files on Vercel. It shows a message to set `FLABS_SECRET_KEY` and `PUBLIC_BASE_URL` in Environment Variables instead.
+- Your own domain: **Project Settings → Domains**, add for example `app.yourwebsite.com`, and create the DNS record Vercel shows. HTTPS is automatic.

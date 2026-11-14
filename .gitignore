@@ -1,0 +1,9 @@
+.secrets/
+
+.next/
+next-env.d.ts
+.vercel/
+node_modules/
+backups/
+.env*.local
+.sandbox/
