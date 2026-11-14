@@ -358,9 +358,26 @@
 [data-slot="sidebar-content"]::-webkit-scrollbar { width: 4px; background: transparent; }
 [data-slot="sidebar-content"]::-webkit-scrollbar-track { background: transparent; }
 [data-slot="sidebar-content"]::-webkit-scrollbar-thumb { background: #344968; border-radius: 999px; }
+/* Sidebar menu: only the open page is blue; hover is a quiet grey; a ring only for keyboard focus */
+[data-sidebar="menu-button"] {
+  border: 1px solid transparent;
+  box-shadow: none;
+  transition: background-color 0.15s, color 0.15s;
+}
+[data-sidebar="menu-button"]:hover:not([data-active]) {
+  background: #1a2130;
+  color: #ffffff;
+}
+[data-sidebar="menu-button"][data-active] {
+  background: #2d5cf2;
+  color: #ffffff;
+  font-weight: 600;
+}
+[data-sidebar="menu-button"][data-active] svg { color: #ffffff; }
+[data-sidebar="menu-button"]:focus { outline: none; }
 [data-sidebar="menu-button"]:focus-visible {
   outline: none;
-  box-shadow: inset 0 0 0 1px rgb(120 167 255 / 0.45);
+  border-color: rgb(120 167 255 / 0.6);
 }
 
 @theme inline {
