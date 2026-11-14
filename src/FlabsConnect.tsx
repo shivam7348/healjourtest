@@ -186,7 +186,7 @@ export default function FlabsConnect({ onChanged }: { onChanged: () => void }) {
           <Button variant="outline" size="sm" disabled={busy} onClick={() => void registerWebhooks(c)}>Register webhooks</Button>
           {!c.isDefault && <Button variant="outline" size="sm" disabled={busy} onClick={() => void makeDefault(c)}><Star size={13} /> Set as default</Button>}
           <Button variant="outline" size="sm" disabled={busy} onClick={() => openEdit(c)}><Pencil size={13} /> Edit</Button>
-          <Button variant="ghost" size="sm" className="account-delete" disabled={busy} onClick={() => remove(c)}><Trash2 size={13} /> Delete</Button>
+          <Button variant="destructive" size="sm" className="account-delete" disabled={busy} onClick={() => remove(c)}><Trash2 size={13} /> Delete</Button>
         </div>
         {prebookFor === c.id && <PreBookingForm connectionId={c.id} embedded />}
         {mappingFor === c.id && <FlabsMapping connectionId={c.id} label={c.label} onChanged={() => void load()} onClose={() => setMappingFor(null)} />}
