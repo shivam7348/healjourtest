@@ -38,6 +38,39 @@
   margin-bottom: 8px;
 }
 
+/* Collapsed sidebar (icon mode): show only the icons, never let labels spill over the page */
+[data-slot="sidebar"][data-collapsible="icon"] [data-slot="sidebar-header"],
+[data-slot="sidebar"][data-collapsible="icon"] [data-slot="sidebar-footer"] {
+  padding-left: 8px;
+  padding-right: 8px;
+  overflow: hidden;
+}
+[data-slot="sidebar"][data-collapsible="icon"] .brand > div:not(.brand-mark),
+[data-slot="sidebar"][data-collapsible="icon"] .workspace-label,
+[data-slot="sidebar"][data-collapsible="icon"] .workspace > div:not(.workspace-avatar),
+[data-slot="sidebar"][data-collapsible="icon"] .secure-chip span,
+[data-slot="sidebar"][data-collapsible="icon"] .user-profile > div:not(.user-avatar),
+[data-slot="sidebar"][data-collapsible="icon"] .user-profile > svg {
+  display: none;
+}
+[data-slot="sidebar"][data-collapsible="icon"] .brand { justify-content: center; padding: 0 0 20px; }
+[data-slot="sidebar"][data-collapsible="icon"] .workspace { justify-content: center; padding: 7px; margin-bottom: 16px; }
+[data-slot="sidebar"][data-collapsible="icon"] .secure-chip { justify-content: center; padding: 10px 0; }
+[data-slot="sidebar"][data-collapsible="icon"] .user-profile { justify-content: center; padding: 10px 0; }
+
+/* Breadcrumbs: the sidebar toggle sits beside the text, not on top of it */
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  min-width: 0;
+}
+.breadcrumbs [data-sidebar="trigger"] {
+  flex-shrink: 0;
+  margin-right: 10px;
+}
+
 /* Pre-booking setup: auto pre-booking switch on its own line */
 .auto-toggle {
   display: flex;
