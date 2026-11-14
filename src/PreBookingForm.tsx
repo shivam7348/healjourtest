@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, Plus, Receipt, RefreshCw, Save, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CatalogPicker, type PickerItem } from "./FlabsBookingForm";
+import type { PickerItem } from "./FlabsBookingForm";
 
 type Connection = { id: string; label: string; branchId: string | null; isDefault: boolean; party: { field: string; id: string } | null };
 type PackageOption = PickerItem & { testCodes: string[] };
@@ -251,10 +251,13 @@ export default function PreBookingForm({ connectionId: fixedId, embedded = false
           <div className="plain-hint">
             <span>{mappedCount} of {options?.tests.length ?? 0} Healjour tests are mapped to this lab in Flabs. Tests sync and match by code automatically every 30 min; to map by hand, use Test Catalog → Flabs CRM accounts → Map tests.{syncNote ? ` ${syncNote}` : ""}</span>
           </div>
-          <CatalogPicker label="Tests" placeholder="Search a test by name or code" items={options?.tests ?? []} selected={testCodes} onChange={setTestCodes}
-            describe={t => (t.mapped ? "mapped · sent by Flabs ID" : "not mapped · sent by name")} />
-          <CatalogPicker label="Packages" placeholder="Search a package by name or code" items={options?.packages ?? []} selected={packageCodes} onChange={setPackageCodes}
-            describe={p => (p.mapped ? "mapped · sent by Flabs ID" : "not mapped · sent by name")} />
+          <CatalogChecklist label="Tests" items={options?.tests ?? []} selected={testCodes} onChange={setTestCodes} />
+          <CatalogChecklist label="Packages" items={options?.packages ?? []} selected={packageCodes} onChange={setPackageCodes}
+            detail={p => {
+              const codes = (p as PackageOption).testCodes ?? [];
+              const names = codes.map(code => options?.tests.find(t => t.code === code)?.name ?? code);
+              return names.length ? `Includes: ${names.join(", ")}` : "";
+            }} />
           {unmappedChosen.length > 0 && <div className="booking-hint-box">Not mapped, will go by name: {unmappedChosen.map(i => i.name).join(", ")}. Map them first if Flabs should bill them automatically.</div>}
           <NameList title="Other tests (by name)" values={extraTests} setValues={setExtraTests} />
           <NameList title="Other packages (by name)" values={extraPackages} setValues={setExtraPackages} />
@@ -402,6 +405,41 @@ function ReferralTable({ title, hint, rows, setRows }: { title: string; hint: st
       <Button variant="ghost" size="sm" aria-label={`Remove ${r.name || "row"}`} onClick={() => setRows(rows.filter((_, j) => j !== i))}><Trash2 size={14} /></Button>
     </div>)}
     <Button variant="outline" size="sm" onClick={() => setRows([...rows, { name: "", flabsId: "" }])}><Plus size={14} /> Add</Button>
+  </div>;
+}
+
+/** Every test or package as a ticked list: name, code, price and whether it goes to Flabs by ID or by name. */
+function CatalogChecklist({ label, items, selected, onChange, detail }: {
+  label: string; items: PickerItem[]; selected: string[]; onChange: (codes: string[]) => void; detail?: (item: PickerItem) => string;
+}) {
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const shown = q ? items.filter(i => i.name.toLowerCase().includes(q) || i.code.toLowerCase().includes(q)) : items;
+  const toggle = (code: string) => onChange(selected.includes(code) ? selected.filter(c => c !== code) : [...selected, code]);
+  const total = items.filter(i => selected.includes(i.code)).reduce((sum, i) => sum + (i.price || 0), 0);
+
+  return <div className="catalog-checklist">
+    <div className="catalog-checklist-head">
+      <div className="trace-subhead">{label} <small className="muted">({items.length} available{selected.length ? `, ${selected.length} selected${total ? ` · ₹${total}` : ""}` : ""})</small></div>
+      {items.length > 6 && <input className="list-search" placeholder={`Search ${label.toLowerCase()}`} value={query} onChange={e => setQuery(e.target.value)} />}
+    </div>
+    {items.length === 0 && <p className="delivery-reason">No {label.toLowerCase()} in the Healjour catalog yet. Add them in Test Catalog.</p>}
+    <div className="catalog-checklist-rows">
+      {shown.map(i => {
+        const on = selected.includes(i.code);
+        const extra = detail?.(i);
+        return <label key={i.code} className={`catalog-check-row${on ? " is-on" : ""}`}>
+          <input type="checkbox" checked={on} onChange={() => toggle(i.code)} />
+          <span className="catalog-check-main">
+            <b>{i.name}</b>
+            <small><code>{i.code}</code>{extra ? ` · ${extra}` : ""}</small>
+          </span>
+          <span className={`catalog-check-tag ${i.mapped ? "mapped" : "unmapped"}`}>{i.mapped ? "Flabs ID" : "by name"}</span>
+          <span className="catalog-check-price">{i.price ? `₹${i.price}` : "—"}</span>
+        </label>;
+      })}
+      {q && shown.length === 0 && <p className="delivery-reason">No {label.toLowerCase()} match "{query}".</p>}
+    </div>
   </div>;
 }
 
