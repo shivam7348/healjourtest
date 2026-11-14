@@ -36,6 +36,14 @@ Locally, the Settings screen can still create the encryption key and save a publ
    | `MONGODB_DB` | Optional database name (default `healjour_integration_studio`) |
    | `FLABS_SECRET_KEY` | A 32-byte base64 key. Use the same key as your local `.secrets/app.env` if you want to keep secrets that were encrypted locally, or make a new one. |
    | `PUBLIC_BASE_URL` | The deployed address, for example `https://your-app.vercel.app` or your own domain |
+   | `FLABS_CLIENT_ID` / `FLABS_CLIENT_SECRET` | Optional: the Flabs lab account to connect automatically on start (no form to fill) |
+   | `FLABS_BRANCH_ID` | The Flabs lab ID (labID) for that account |
+   | `FLABS_LABEL` | Optional name shown in the app (default "Flabs lab (auto-connected)") |
+   | `FLABS_BASE_URL` | Optional, default `https://v2.flabs.in` |
+
+   With these set, the lab account connects on start and its tests sync with Flabs automatically (every 30 min).
+   To make every Healjour booking also create a Flabs pre-booking, open Orders & Bookings → Pre-booking →
+   Pre-booking setup, tick "Auto pre-booking" and choose the default lead source.
 
    Make a new key with:
 

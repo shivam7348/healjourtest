@@ -11,8 +11,9 @@ import type { PartnerLab, StudioIntegration } from "./core/models.js";
 import { deleteWebhook, listTests, listWebhooks, subscribeWebhook, testFlabsConnection } from "./core/flabs/client.js";
 import { FLABS_EVENTS, handleFlabsEvent, type FlabsEvent } from "./core/flabs/webhooks.js";
 import { syncFlabsCatalog } from "./core/flabs/sink.js";
+import { autoPrebook, describeAutoPrebook, ensureCatalogSynced, syncAllInBackground } from "./core/flabs/auto.js";
 import {
-  deleteFlabsConnection, getFlabsConfig, listConnectionViews, loadFlabsConnections,
+  allFlabsConfigs, deleteFlabsConnection, getFlabsConfig, listConnectionViews, loadFlabsConnections,
   saveFlabsConnection, setDefaultConnection, setWebhookToken, findByWebhookToken
 } from "./core/flabs/connection.js";
 import { canPersistSecret } from "./core/flabs/vault.js";
@@ -565,16 +566,19 @@ async function upsertConnection(id: string | undefined, body: unknown, res: expr
   try {
     await testFlabsConnection({ clientId, clientSecret, baseUrl: data.baseUrl.replace(/\/$/, "") });
     const view = await saveFlabsConnection({ ...data, id, clientId, clientSecret, baseUrl: data.baseUrl, makeDefault: data.makeDefault });
+    const savedConfig = getFlabsConfig(view.id);
+    const sync = savedConfig ? await ensureCatalogSynced(savedConfig, { force: true }) : null;
     await logIntegration({
       type: "account", status: "success", account: view.label,
       title: id ? "Account updated" : "New account connected",
       message: `Login check passed. Branch ${view.branchId}, ${view.phase}${view.party ? `, party ${view.party.field}` : ""}. Secret: ${view.secretStorage === "encrypted" ? "encrypted" : "in server memory only"}.`
     });
+    const syncNote = sync?.error ? ` Tests could not be synced yet: ${sync.error}` : " Tests synced automatically.";
     res.json({
-      ok: true, connection: view,
-      message: view.secretStorage === "encrypted"
+      ok: true, connection: view, sync,
+      message: (view.secretStorage === "encrypted"
         ? `"${view.label}" saved (secret encrypted).`
-        : `"${view.label}" is active. The secret is in server memory; it must be entered again after a restart (set FLABS_SECRET_KEY to save it permanently).`
+        : `"${view.label}" is active. The secret is in server memory; it must be entered again after a restart (set FLABS_SECRET_KEY to save it permanently).`) + syncNote
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not save.";
@@ -642,6 +646,7 @@ app.get("/api/flabs/booking-options", async (req, res) => {
   const connectionId = String(req.query.connectionId ?? "");
   const config = getFlabsConfig(connectionId);
   if (!config) return res.status(404).json({ error: "Connection not found." });
+  const sync = await ensureCatalogSynced(config);
   const store = getStore();
   const [tests, packages, mappings] = await Promise.all([
     store.listCatalogTests(), store.listCatalogPackages(), store.listFlabsMappings(connectionId)
@@ -650,6 +655,7 @@ app.get("/api/flabs/booking-options", async (req, res) => {
   const packageMap = new Map(mappings.filter(m => m.kind === "package").map(m => [m.healjourCode, m]));
   res.json({
     connection: { id: config.id, label: config.label, branchId: config.branchId ?? null, phase: config.phase, party: config.party ?? null },
+    sync,
     tests: tests.filter(t => t.active).map(t => ({ code: t.code, name: t.name, price: t.price, mapped: testMap.has(t.code), flabsCost: testMap.get(t.code)?.flabsCost ?? null })),
     packages: packages.filter(p => p.active).map(p => ({ code: p.code, name: p.name, price: p.price, testCodes: p.testCodes, mapped: packageMap.has(p.code) }))
   });
@@ -692,11 +698,22 @@ app.post("/api/flabs/bookings", async (req, res) => {
       actor: "booking_form", action: result.duplicate ? "flabs.booking.duplicate" : "flabs.booking.sent",
       detail: `${config.label}: ${result.phase} ${result.integratorID}${result.leadId ? ` (lead ${result.leadId})` : ""}; ${result.mappedTests.length} mapped test(s), ${result.unmappedTests.length} unmapped.`
     });
+    // Lab accounts with "Auto pre-booking" on also get the Flabs pre-booking, without a second form.
+    const prebooking = result.duplicate ? { status: "off" as const } : await autoPrebook(config, {
+      integratorId: result.integratorID,
+      first_name: parsed.data.first_name, last_name: parsed.data.last_name,
+      gender: parsed.data.gender, age: parsed.data.age, age_type: parsed.data.age_type,
+      tests: parsed.data.tests, packages: parsed.data.packages,
+      unmappedTests: parsed.data.unmappedTests.map(t => t.name),
+      unmappedPackages: parsed.data.unmappedPackages.map(p => p.name),
+      doctor: parsed.data.referredOrganization, hospital: parsed.data.referredHospitalOrganization
+    });
+    const prebookingNote = describeAutoPrebook(prebooking);
     res.json({
-      ok: true, ...result,
-      message: result.duplicate
+      ok: true, ...result, prebooking,
+      message: (result.duplicate
         ? "This patient is already in Flabs today (409). No duplicate was created."
-        : `${result.phase === "booking" ? "Booking" : "Lead"} created in Flabs.`
+        : `${result.phase === "booking" ? "Booking" : "Lead"} created in Flabs.`) + (prebookingNote ? ` ${prebookingNote}` : "")
     });
   } catch (error) {
     const status = error instanceof FlabsError ? (error.status >= 400 && error.status < 500 ? 400 : 502) : 500;
@@ -735,12 +752,15 @@ app.put("/api/flabs/connections/:id/prebooking-settings", async (req, res) => {
     rateListTypes: parsed.data.rateListTypes,
     doctors: withIds(parsed.data.doctors),
     hospitals: withIds(parsed.data.hospitals),
+    autoPrebooking: parsed.data.autoPrebooking,
+    defaultLeadSource: parsed.data.defaultLeadSource,
+    defaultRateListType: parsed.data.defaultRateListType,
     updatedAt: new Date().toISOString()
   };
   await getStore().savePrebookingSettings(settings);
   await logIntegration({
     type: "account", status: "info", account: config.label, title: "Pre-booking setup saved",
-    message: `${settings.leadSources.length} lead source(s), ${settings.rateListTypes.length} rate list(s), ${settings.doctors.length} doctor(s), ${settings.hospitals.length} hospital(s) mapped.`
+    message: `${settings.leadSources.length} lead source(s), ${settings.rateListTypes.length} rate list(s), ${settings.doctors.length} doctor(s), ${settings.hospitals.length} hospital(s) mapped. Auto pre-booking ${settings.autoPrebooking ? `on (lead source ${settings.defaultLeadSource})` : "off"}.`
   });
   res.json({ ok: true, settings });
 });
@@ -760,6 +780,7 @@ app.post("/api/flabs/prebookings", async (req, res) => {
   const settingErrors = checkAgainstSettings(parsed.data, settings);
   if (settingErrors.length) return res.status(400).json({ ok: false, error: settingErrors.join(" ") });
   const patientName = [parsed.data.first_name, parsed.data.last_name].filter(Boolean).join(" ");
+  await ensureCatalogSynced(config);
   try {
     const result = await sendPreBooking(config, parsed.data);
     // The pre-booking shows on the calendar too; Flabs webhooks find it by integrator ID.
@@ -1037,6 +1058,8 @@ export function ensureReady(): Promise<void> {
       loadSettingsFile();
       await connectStore();
       await loadFlabsConnections();
+      // Keep every account's test mapping fresh without anyone pressing "Sync".
+      syncAllInBackground(allFlabsConfigs());
     })().catch(error => {
       ready = null; // let the next request try again instead of failing forever
       throw error;

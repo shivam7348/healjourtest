@@ -6,6 +6,7 @@ import type { CanonicalRecord } from "../types.js";
 import type { CatalogTest, FlabsMapping } from "../models.js";
 import { getStore } from "../store.js";
 import { createLead, listPackages, listTests, FlabsError, type CreateLeadPayload, type FlabsConfig } from "./client.js";
+import { autoPrebook, describeAutoPrebook } from "./auto.js";
 
 export type SyncReport = {
   branchId: string;
@@ -186,7 +187,24 @@ export async function deliverToFlabs(record: CanonicalRecord, config: FlabsConfi
   try {
     const result = await createLead(config, plan.payload);
     if (result.duplicate) return { ok: true, retryable: false, latencyMs: elapsed(), detail: "Already in Flabs for today (409) - treated as synced." };
-    return { ok: true, retryable: false, latencyMs: elapsed(), detail: `Created in Flabs as ${phase}${result.leadId ? ` (${result.leadId})` : ""}.` };
+    // Lab accounts with "Auto pre-booking" on also get the pre-booking. Its outcome never fails the delivery.
+    const code = record.order.code ?? "";
+    const testEntry = catalog.find(t => t.loinc === code || t.code === code);
+    const p = record.patient;
+    const prebooking = await autoPrebook(config, {
+      integratorId: record.recordId,
+      first_name: p.givenName || p.familyName || "",
+      last_name: p.givenName && p.familyName ? p.familyName : undefined,
+      gender: p.gender && p.gender !== "unknown" ? genderToFlabs[p.gender] : undefined,
+      age: (p.birthDate && ageInYears(p.birthDate)) || 0,
+      age_type: "year",
+      tests: testEntry ? [{ code: testEntry.code }] : [],
+      packages: [],
+      unmappedTests: testEntry ? [] : [record.order.display || code].filter(Boolean),
+      unmappedPackages: []
+    });
+    const note = describeAutoPrebook(prebooking);
+    return { ok: true, retryable: false, latencyMs: elapsed(), detail: `Created in Flabs as ${phase}${result.leadId ? ` (${result.leadId})` : ""}.${note ? ` ${note}` : ""}` };
   } catch (error) {
     if (error instanceof FlabsError) return { ok: false, retryable: error.retryable, latencyMs: elapsed(), detail: error.message };
     return { ok: false, retryable: true, latencyMs: elapsed(), detail: error instanceof Error ? error.message : "Unknown Flabs error." };

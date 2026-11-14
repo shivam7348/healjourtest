@@ -174,6 +174,11 @@ export type FlabsPrebookingSettings = {
   rateListTypes: string[];
   doctors: FlabsReferral[];
   hospitals: FlabsReferral[];
+  /** When on, every Healjour booking sent to this lab account also creates a Flabs pre-booking. */
+  autoPrebooking?: boolean;
+  /** Used by auto pre-booking, since a booking does not carry a lead source or rate list. */
+  defaultLeadSource?: string;
+  defaultRateListType?: string;
   updatedAt: string;
 };
 

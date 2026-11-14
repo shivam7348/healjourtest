@@ -52,11 +52,24 @@ export const prebookingSettingsSchema = z.object({
   leadSources: valueList.default([]),
   rateListTypes: valueList.default([]),
   doctors: z.array(referralSchema).max(500).default([]),
-  hospitals: z.array(referralSchema).max(500).default([])
+  hospitals: z.array(referralSchema).max(500).default([]),
+  autoPrebooking: z.boolean().default(false),
+  defaultLeadSource: z.string().trim().max(80).optional().transform(v => v || undefined),
+  defaultRateListType: z.string().trim().max(60).optional().transform(v => v || undefined)
+}).superRefine((v, ctx) => {
+  if (v.autoPrebooking && !v.defaultLeadSource) {
+    ctx.addIssue({ code: "custom", path: ["defaultLeadSource"], message: "Auto pre-booking needs a default lead source." });
+  }
+  if (v.defaultLeadSource && v.leadSources.length && !v.leadSources.includes(v.defaultLeadSource)) {
+    ctx.addIssue({ code: "custom", path: ["defaultLeadSource"], message: "Default lead source must be one of the lead sources." });
+  }
+  if (v.defaultRateListType && v.rateListTypes.length && !v.rateListTypes.includes(v.defaultRateListType)) {
+    ctx.addIssue({ code: "custom", path: ["defaultRateListType"], message: "Default rate list must be one of the rate list types." });
+  }
 });
 
 export const emptyPrebookingSettings = (connectionId: string): FlabsPrebookingSettings => ({
-  connectionId, leadSources: [], rateListTypes: [], doctors: [], hospitals: [], updatedAt: new Date(0).toISOString()
+  connectionId, leadSources: [], rateListTypes: [], doctors: [], hospitals: [], autoPrebooking: false, updatedAt: new Date(0).toISOString()
 });
 
 /**

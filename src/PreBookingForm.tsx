@@ -5,16 +5,27 @@ import { CatalogPicker, type PickerItem } from "./FlabsBookingForm";
 
 type Connection = { id: string; label: string; branchId: string | null; isDefault: boolean; party: { field: string; id: string } | null };
 type PackageOption = PickerItem & { testCodes: string[] };
-type Options = { connection: { id: string; label: string; branchId: string | null }; tests: PickerItem[]; packages: PackageOption[] };
+type SyncStatus = { lastSyncedAt: string | null; error: string | null; ranNow: boolean };
+type Options = { connection: { id: string; label: string; branchId: string | null }; sync?: SyncStatus; tests: PickerItem[]; packages: PackageOption[] };
 type PackageWithTests = { package_name: string; tests: string };
 type Referral = { id?: string; name: string; flabsId: string };
-type Settings = { leadSources: string[]; rateListTypes: string[]; doctors: Referral[]; hospitals: Referral[]; updatedAt?: string };
+type Settings = {
+  leadSources: string[]; rateListTypes: string[]; doctors: Referral[]; hospitals: Referral[];
+  autoPrebooking?: boolean; defaultLeadSource?: string; defaultRateListType?: string; updatedAt?: string;
+};
 type Result = {
   ok: boolean; message?: string; error?: string; integratorId?: string; preBookingID?: string;
   mappedTests?: string[]; unmappedTests?: string[]; mappedPackages?: string[]; unmappedPackages?: string[];
 };
 
 const EMPTY_SETTINGS: Settings = { leadSources: [], rateListTypes: [], doctors: [], hospitals: [] };
+
+const timeAgo = (iso: string) => {
+  const minutes = Math.round((Date.now() - Date.parse(iso)) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  return `${Math.round(minutes / 60)} h ago`;
+};
 
 /** Pre-booking for Flabs billing (POST /client/billing/create). Goes to lab accounts only, never corporate ones. */
 export default function PreBookingForm() {
@@ -74,7 +85,8 @@ export default function PreBookingForm() {
 
   // A single configured value is picked automatically.
   useEffect(() => {
-    if (settings.leadSources.length === 1) setF(prev => ({ ...prev, lead_source: settings.leadSources[0] }));
+    const lead = settings.defaultLeadSource ?? (settings.leadSources.length === 1 ? settings.leadSources[0] : "");
+    setF(prev => ({ ...prev, lead_source: prev.lead_source || lead, rate_list_type: prev.rate_list_type || settings.defaultRateListType || "" }));
   }, [settings]);
 
   const syncTests = async () => {
@@ -84,7 +96,7 @@ export default function PreBookingForm() {
       const data = await res.json();
       if (!res.ok || data.ok === false) throw new Error(data.error || "Sync failed.");
       await loadOptions(connectionId);
-      setSyncNote(`Synced: ${data.matched?.length ?? 0} test(s) matched by code; ${data.healjourOnly?.length ?? 0} Healjour test(s) not found in this lab's Flabs list.`);
+      setSyncNote(`Synced now: ${data.matched?.length ?? 0} test(s) matched by code; ${data.healjourOnly?.length ?? 0} Healjour test(s) not found in this lab's Flabs list.`);
     } catch (e) {
       setSyncNote(e instanceof Error ? e.message : "Sync failed.");
     } finally {
@@ -157,6 +169,15 @@ export default function PreBookingForm() {
       </div>
     </div>
 
+    <div className="plain-hint">
+      <RefreshCw size={15} />
+      <span>
+        <b>Automatic:</b> lab account connected ({labAccounts.find(c => c.id === connectionId)?.label ?? "—"}) ·
+        {" "}tests {options?.sync?.lastSyncedAt ? `synced with Flabs ${timeAgo(options.sync.lastSyncedAt)}` : "not synced yet"}{options?.sync?.error ? ` (last try failed: ${options.sync.error})` : ""} ·
+        {" "}auto pre-booking {settings.autoPrebooking ? <b>ON</b> : "off"}{settings.autoPrebooking ? ` — every Healjour booking sent to this lab also creates a pre-booking (lead source ${settings.defaultLeadSource}).` : " — switch it on in Pre-booking setup below."}
+      </span>
+    </div>
+
     <div className="booking-layout">
       <div className="booking-main">
         <section className="access-card">
@@ -220,10 +241,10 @@ export default function PreBookingForm() {
         <section className="access-card">
           <div className="access-card-head">
             <div><h2>4. Tests and packages</h2><p>Mapped items go by Flabs ID. Unmapped items go by name and Flabs has to match them by hand.</p></div>
-            <Button variant="outline" size="sm" disabled={syncing || !connectionId} onClick={() => void syncTests()}><RefreshCw size={14} className={syncing ? "spin" : ""} /> {syncing ? "Syncing…" : "Sync & auto-match"}</Button>
+            <Button variant="outline" size="sm" disabled={syncing || !connectionId} onClick={() => void syncTests()}><RefreshCw size={14} className={syncing ? "spin" : ""} /> {syncing ? "Syncing…" : "Sync now"}</Button>
           </div>
           <div className="plain-hint">
-            <span>{mappedCount} of {options?.tests.length ?? 0} Healjour tests are mapped to this lab in Flabs. To map by hand, use Test Catalog → Flabs CRM accounts → Map tests.{syncNote ? ` ${syncNote}` : ""}</span>
+            <span>{mappedCount} of {options?.tests.length ?? 0} Healjour tests are mapped to this lab in Flabs. Tests sync and match by code automatically every 30 min; to map by hand, use Test Catalog → Flabs CRM accounts → Map tests.{syncNote ? ` ${syncNote}` : ""}</span>
           </div>
           <CatalogPicker label="Tests" placeholder="Search a test by name or code" items={options?.tests ?? []} selected={testCodes} onChange={setTestCodes}
             describe={t => (t.mapped ? "mapped · sent by Flabs ID" : "not mapped · sent by name")} />
@@ -280,6 +301,9 @@ function PrebookingSetup({ connectionId, settings, onSaved }: { connectionId: st
   const [rateLists, setRateLists] = useState("");
   const [doctors, setDoctors] = useState<Referral[]>([]);
   const [hospitals, setHospitals] = useState<Referral[]>([]);
+  const [autoOn, setAutoOn] = useState(false);
+  const [defaultLead, setDefaultLead] = useState("");
+  const [defaultRate, setDefaultRate] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -289,6 +313,9 @@ function PrebookingSetup({ connectionId, settings, onSaved }: { connectionId: st
     setRateLists(settings.rateListTypes.join(", "));
     setDoctors(settings.doctors);
     setHospitals(settings.hospitals);
+    setAutoOn(Boolean(settings.autoPrebooking));
+    setDefaultLead(settings.defaultLeadSource ?? "");
+    setDefaultRate(settings.defaultRateListType ?? "");
   }, [settings]);
 
   const split = (text: string) => text.split(",").map(s => s.trim()).filter(Boolean);
@@ -299,7 +326,10 @@ function PrebookingSetup({ connectionId, settings, onSaved }: { connectionId: st
         leadSources: split(leadSources),
         rateListTypes: split(rateLists),
         doctors: doctors.filter(d => d.name.trim() && d.flabsId.trim()).map(({ name, flabsId }) => ({ name, flabsId })),
-        hospitals: hospitals.filter(h => h.name.trim() && h.flabsId.trim()).map(({ name, flabsId }) => ({ name, flabsId }))
+        hospitals: hospitals.filter(h => h.name.trim() && h.flabsId.trim()).map(({ name, flabsId }) => ({ name, flabsId })),
+        autoPrebooking: autoOn,
+        defaultLeadSource: defaultLead.trim() || undefined,
+        defaultRateListType: defaultRate.trim() || undefined
       };
       const res = await fetch(`/api/flabs/connections/${encodeURIComponent(connectionId)}/prebooking-settings`, {
         method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
@@ -326,6 +356,27 @@ function PrebookingSetup({ connectionId, settings, onSaved }: { connectionId: st
       <div className="form-grid">
         <label className="field"><span>Lead sources (comma separated)</span><input value={leadSources} onChange={e => setLeadSources(e.target.value)} placeholder="e.g. healjour, website" /><small>Exactly as Flabs gave them. Only these will be accepted.</small></label>
         <label className="field"><span>Rate list types (comma separated)</span><input value={rateLists} onChange={e => setRateLists(e.target.value)} placeholder="Optional" /></label>
+      </div>
+      <div className="rows-block">
+        <div className="trace-subhead">Auto pre-booking</div>
+        <label className="auto-toggle">
+          <input type="checkbox" checked={autoOn} onChange={e => setAutoOn(e.target.checked)} />
+          <span>Create a Flabs pre-booking automatically for every Healjour booking sent to this lab</span>
+        </label>
+        <div className="form-grid">
+          <label className="field"><span>Default lead source{autoOn ? " *" : ""}</span>
+            {split(leadSources).length
+              ? <select value={defaultLead} onChange={e => setDefaultLead(e.target.value)}><option value="">Choose</option>{split(leadSources).map(v => <option key={v} value={v}>{v}</option>)}</select>
+              : <input value={defaultLead} onChange={e => setDefaultLead(e.target.value)} placeholder="e.g. healjour" />}
+            <small>A booking has no lead source, so this one is used. Also pre-fills the form above.</small>
+          </label>
+          <label className="field"><span>Default rate list type</span>
+            {split(rateLists).length
+              ? <select value={defaultRate} onChange={e => setDefaultRate(e.target.value)}><option value="">None</option>{split(rateLists).map(v => <option key={v} value={v}>{v}</option>)}</select>
+              : <input value={defaultRate} onChange={e => setDefaultRate(e.target.value)} placeholder="Optional" />}
+          </label>
+        </div>
+        <small className="muted">Gender is required by Flabs: bookings without a gender are skipped and shown in Logs. A referring doctor/hospital is passed on only if it is in the mapped lists below.</small>
       </div>
       <ReferralTable title="Referring doctors" hint="Healjour name → Flabs doctor ID" rows={doctors} setRows={setDoctors} />
       <ReferralTable title="Referring hospitals" hint="Healjour name → Flabs hospital ID" rows={hospitals} setRows={setHospitals} />

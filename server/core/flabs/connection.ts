@@ -30,7 +30,7 @@ function envFlabsConfig(): FlabsConfig | undefined {
   if (!clientId || !clientSecret) return undefined;
   return {
     id: "env",
-    label: "Environment connection",
+    label: process.env.FLABS_LABEL?.trim() || "Flabs lab (auto-connected)",
     baseUrl: (process.env.FLABS_BASE_URL?.trim() || "https://v2.flabs.in").replace(/\/$/, ""),
     clientId,
     clientSecret,
@@ -82,9 +82,14 @@ export async function loadFlabsConnections() {
   if (storedAll.length && !canPersistSecret()) {
     console.warn("Flabs: saved connections exist but FLABS_SECRET_KEY is not set, so they are unusable. Re-enter them in the Test Catalog screen.");
   }
+  // Auto-connect: FLABS_CLIENT_ID / FLABS_CLIENT_SECRET / FLABS_BRANCH_ID connect the lab account on start,
+  // with no form to fill. Skipped only when the same account was already saved from the UI.
   const fromEnv = envFlabsConfig();
-  if (fromEnv && registry.size === 0) {
-    registry.set("env", { config: fromEnv, isDefault: true, secretStorage: "env", updatedAt: new Date().toISOString() });
+  const alreadySaved = fromEnv && [...registry.values()].some(e =>
+    e.config.clientId === fromEnv.clientId && (e.config.branchId ?? "") === (fromEnv.branchId ?? "") && !e.config.party);
+  if (fromEnv && !alreadySaved) {
+    const hasDefault = [...registry.values()].some(e => e.isDefault);
+    registry.set("env", { config: fromEnv, isDefault: !hasDefault, secretStorage: "env", updatedAt: new Date().toISOString() });
   }
   ensureDefault();
 }
@@ -102,7 +107,7 @@ async function persist(entry: Entry) {
   } else {
     // No key: write nothing secret. Drop any older saved copy so it cannot reload later.
     await store.deleteFlabsConnection(entry.config.id);
-    entry.secretStorage = "memory";
+    entry.secretStorage = entry.config.id === "env" ? "env" : "memory";
   }
 }
 

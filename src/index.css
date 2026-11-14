@@ -38,6 +38,18 @@
   margin-bottom: 8px;
 }
 
+/* Pre-booking setup: auto pre-booking switch on its own line */
+.auto-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.auto-toggle input { width: 16px; height: 16px; margin-top: 1px; flex-shrink: 0; }
+
 /* Integrations: sandbox run panel (send, lab simulator, receive) */
 .run-panel {
   margin-top: 16px;
