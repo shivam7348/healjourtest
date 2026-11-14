@@ -557,6 +557,13 @@ async function upsertConnection(id: string | undefined, body: unknown, res: expr
     return res.status(400).json({ ok: false, error: parsed.error.issues.map(i => `${i.path.join(".") || "body"}: ${i.message}`).join(" ") });
   }
   const data = parsed.data;
+  // Saving the same login + branch + party again updates that account instead of adding a duplicate card.
+  if (!id && data.clientId) {
+    const same = allFlabsConfigs().find(c =>
+      c.clientId === data.clientId && (c.branchId ?? "") === data.branchId &&
+      (c.party?.field ?? "") === (data.party?.field ?? "") && (c.party?.id ?? "") === (data.party?.id ?? ""));
+    if (same) id = same.id;
+  }
   const existing = id ? getFlabsConfig(id) : undefined;
   if (id && !existing) return res.status(404).json({ ok: false, error: "Connection not found." });
   const clientId = data.clientId ?? existing?.clientId;

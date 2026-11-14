@@ -173,7 +173,7 @@ export default function FlabsConnect({ onChanged }: { onChanged: () => void }) {
       {connections.map(c => <div key={c.id} className={`flabs-account ${c.isDefault ? "is-default" : ""}`}>
         <div className="flabs-account-head">
           <div>
-            <b>{c.label}</b>{c.isDefault && <span className="core-layer-chip passed" style={{ marginLeft: 8 }}>default</span>}
+            <b>{c.label}{c.isDefault && <span className="core-layer-chip passed account-chip">default</span>}</b>
             <small>{c.clientIdMasked} · branch {c.branchId ?? "—"} · {c.phase}{c.party ? ` · ${partyText(c.party)}` : ""}</small>
           </div>
           <span className="trace-ms">{c.mappedTests} test mapped</span>
@@ -182,16 +182,18 @@ export default function FlabsConnect({ onChanged }: { onChanged: () => void }) {
           {!c.party && <Button variant="default" size="sm" disabled={busy} onClick={() => setPrebookFor(prebookFor === c.id ? null : c.id)}><Receipt size={13} /> {prebookFor === c.id ? "Close pre-booking" : "Pre-booking"}</Button>}
           <Button variant="outline" size="sm" disabled={busy} onClick={() => void sync(c)}><RefreshCw size={13} /> Sync</Button>
           <Button variant="outline" size="sm" disabled={busy} onClick={() => flabsTests[c.id] ? hideTests(c.id) : void viewTests(c)}>{flabsTests[c.id] ? "Hide Flabs tests" : "View Flabs tests"}</Button>
-          <Button variant="default" size="sm" disabled={busy} onClick={() => setMappingFor(mappingFor === c.id ? null : c.id)}>{mappingFor === c.id ? "Close mapping" : "Map tests"}</Button>
+          <Button variant="outline" size="sm" disabled={busy} onClick={() => setMappingFor(mappingFor === c.id ? null : c.id)}>{mappingFor === c.id ? "Close mapping" : "Map tests"}</Button>
           <Button variant="outline" size="sm" disabled={busy} onClick={() => void registerWebhooks(c)}>Register webhooks</Button>
           {!c.isDefault && <Button variant="outline" size="sm" disabled={busy} onClick={() => void makeDefault(c)}><Star size={13} /> Set as default</Button>}
           <Button variant="outline" size="sm" disabled={busy} onClick={() => openEdit(c)}><Pencil size={13} /> Edit</Button>
-          <Button variant="destructive" size="sm" disabled={busy} onClick={() => remove(c)}><Trash2 size={13} /> Delete</Button>
+          <Button variant="ghost" size="sm" className="account-delete" disabled={busy} onClick={() => remove(c)}><Trash2 size={13} /> Delete</Button>
         </div>
         {prebookFor === c.id && <PreBookingForm connectionId={c.id} embedded />}
         {mappingFor === c.id && <FlabsMapping connectionId={c.id} label={c.label} onChanged={() => void load()} onClose={() => setMappingFor(null)} />}
         {flabsTests[c.id] && <div className="flabs-tests">
-          {flabsTests[c.id].error && <div className="access-message error"><X size={16} />{flabsTests[c.id].error}</div>}
+          {flabsTests[c.id].error && (/only with a corporate/.test(flabsTests[c.id].error!)
+            ? <div className="plain-hint"><span>{flabsTests[c.id].error}</span></div>
+            : <div className="access-message error"><X size={16} />{flabsTests[c.id].error}</div>)}
           {flabsTests[c.id].rows && <>
             <div className="trace-subhead">Flabs tests ({flabsTests[c.id].rows!.length}){flabsTests[c.id].party ? ` · pricing for ${flabsTests[c.id].party}` : " · standard branch pricing"}</div>
             <input className="flabs-tests-search" placeholder="Search by name or code" value={flabsTests[c.id].filter} onChange={e => setFlabsTests(t => ({ ...t, [c.id]: { ...t[c.id], filter: e.target.value } }))} />

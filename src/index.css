@@ -71,6 +71,26 @@
   margin-right: 10px;
 }
 
+/* Flabs account card: compact action row, one primary button, delete pushed to the end */
+.flabs-account .credential-actions { align-items: center; gap: 6px; }
+.flabs-account .credential-actions [data-slot="button"] {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.flabs-account .credential-actions .account-delete { margin-left: auto; color: #b91c1c; }
+.flabs-account .credential-actions .account-delete:hover { background: #fee2e2; color: #991b1b; }
+.flabs-account-head b .account-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 10.5px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.flabs-account .flabs-tests .plain-hint { margin: 0; }
+
 /* Pre-booking form inside a Flabs account card: one column, separated from the account buttons */
 .prebook-embedded {
   margin-top: 14px;
