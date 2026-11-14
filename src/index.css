@@ -71,6 +71,15 @@
   margin-right: 10px;
 }
 
+/* Pre-booking form inside a Flabs account card: one column, separated from the account buttons */
+.prebook-embedded {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e3e9f2;
+}
+.prebook-embedded .booking-layout { grid-template-columns: minmax(0, 1fr); margin-top: 8px; }
+.prebook-embedded .booking-sidebar { position: static; }
+
 /* Pre-booking setup: auto pre-booking switch on its own line */
 .auto-toggle {
   display: flex;

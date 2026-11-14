@@ -6,14 +6,16 @@
 import { getStore } from "../store.js";
 import { logIntegration } from "../logs.js";
 import { recordAudit } from "../identity.js";
-import type { FlabsConfig } from "./client.js";
+import { PARTY_REQUIRED_HINT, type FlabsConfig } from "./client.js";
 import { syncFlabsCatalog } from "./sink.js";
 import { checkAgainstSettings, emptyPrebookingSettings, preBookingSchema, sendPreBooking } from "./prebooking.js";
 
 const SYNC_MAX_AGE_MS = 30 * 60 * 1000;
 const RETRY_AFTER_ERROR_MS = 5 * 60 * 1000;
+// An account whose test list needs a corporate will not start working by itself: check again only every 6 h.
+const RETRY_AFTER_PARTY_REQUIRED_MS = 6 * 60 * 60 * 1000;
 
-type SyncState = { lastSyncedAt?: string; lastError?: string; failedAt?: number };
+type SyncState = { lastSyncedAt?: string; lastError?: string; failedAt?: number; retryAfterMs?: number };
 const syncState = new Map<string, SyncState>();
 const inFlight = new Map<string, Promise<SyncState>>();
 
@@ -34,7 +36,7 @@ export async function ensureCatalogSynced(config: FlabsConfig, options: { force?
     if (newest) state.lastSyncedAt = newest;
   }
   const age = state.lastSyncedAt ? Date.now() - Date.parse(state.lastSyncedAt) : Infinity;
-  const recentlyFailed = state.failedAt !== undefined && Date.now() - state.failedAt < RETRY_AFTER_ERROR_MS;
+  const recentlyFailed = state.failedAt !== undefined && Date.now() - state.failedAt < (state.retryAfterMs ?? RETRY_AFTER_ERROR_MS);
   if (!options.force && (age < SYNC_MAX_AGE_MS || recentlyFailed)) {
     syncState.set(config.id, state);
     return { lastSyncedAt: state.lastSyncedAt ?? null, error: recentlyFailed ? state.lastError ?? null : null, ranNow: false };
@@ -54,7 +56,8 @@ export async function ensureCatalogSynced(config: FlabsConfig, options: { force?
       } catch (error) {
         const message = error instanceof Error ? error.message : "Flabs sync failed.";
         await logIntegration({ type: "sync", status: "error", account: config.label, title: "Auto-sync failed", message });
-        return { ...state, lastError: message, failedAt: Date.now() };
+        const partyRequired = message === PARTY_REQUIRED_HINT;
+        return { ...state, lastError: message, failedAt: Date.now(), retryAfterMs: partyRequired ? RETRY_AFTER_PARTY_REQUIRED_MS : RETRY_AFTER_ERROR_MS };
       } finally {
         inFlight.delete(config.id);
       }

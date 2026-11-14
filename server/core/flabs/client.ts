@@ -105,15 +105,26 @@ function partyQuery(party?: FlabsParty) {
   return `&${key}=${encodeURIComponent(party.id)}`;
 }
 
+/** Some Flabs integrations list tests only for a corporate or organization. Pre-bookings do not need one. */
+export const PARTY_REQUIRED_PATTERN = /corporateUser or organization is required/i;
+export const PARTY_REQUIRED_HINT =
+  "Flabs lists tests for this account only with a corporate/organization, so tests cannot be synced or mapped here. " +
+  "Pre-bookings do not need a corporate: tests go to Flabs by name (unmapped_tests).";
+
+function catalogError(status: number, body: any) {
+  const message = describeFlabsError(status, body);
+  return new FlabsError(status, PARTY_REQUIRED_PATTERN.test(String(message)) ? PARTY_REQUIRED_HINT : message);
+}
+
 export async function listTests(config: FlabsConfig, branchID: string) {
   const { status, body } = await authed(config, `/client/crm/tests?branchID=${encodeURIComponent(branchID)}${partyQuery(config.party)}`);
-  if (status !== 200) throw new FlabsError(status, describeFlabsError(status, body));
+  if (status !== 200) throw catalogError(status, body);
   return (body.tests ?? []) as Array<{ _id: string; name: string; code: string; cost: number }>;
 }
 
 export async function listPackages(config: FlabsConfig, branchID: string) {
   const { status, body } = await authed(config, `/client/crm/packages?branchID=${encodeURIComponent(branchID)}${partyQuery(config.party)}`);
-  if (status !== 200) throw new FlabsError(status, describeFlabsError(status, body));
+  if (status !== 200) throw catalogError(status, body);
   return (body.packages ?? []) as Array<{ _id: string; name: string; code: string; total: number }>;
 }
 

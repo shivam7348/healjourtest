@@ -28,7 +28,11 @@ const timeAgo = (iso: string) => {
 };
 
 /** Pre-booking for Flabs billing (POST /client/billing/create). Goes to lab accounts only, never corporate ones. */
-export default function PreBookingForm() {
+/**
+ * `connectionId` + `embedded`: shown inside one Flabs account card (Test Catalog), fixed to that account,
+ * without the page heading and account picker.
+ */
+export default function PreBookingForm({ connectionId: fixedId, embedded = false }: { connectionId?: string; embedded?: boolean } = {}) {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [connectionId, setConnectionId] = useState("");
   const [options, setOptions] = useState<Options | null>(null);
@@ -61,10 +65,10 @@ export default function PreBookingForm() {
       const all: Connection[] = data.connections;
       setConnections(all);
       const labs = all.filter(c => !c.party);
-      const def = labs.find(c => c.isDefault) ?? labs[0];
+      const def = (fixedId ? labs.find(c => c.id === fixedId) : undefined) ?? labs.find(c => c.isDefault) ?? labs[0];
       if (def) setConnectionId(def.id);
     })();
-  }, []);
+  }, [fixedId]);
 
   const loadOptions = async (id: string) => {
     const res = await fetch(`/api/flabs/booking-options?connectionId=${encodeURIComponent(id)}`);
@@ -160,14 +164,15 @@ export default function PreBookingForm() {
     </div>;
   }
 
-  return <div className="content core-page flabs-theme">
-    <div className="page-heading">
+  return <div className={embedded ? "prebook-embedded flabs-theme" : "content core-page flabs-theme"}>
+    {!embedded && <div className="page-heading">
       <div>
         <div className="eyebrow">ORDERS & BOOKINGS</div>
         <h1>New pre-booking in Flabs</h1>
         <p>A pre-booking starts the billing workflow in Flabs. Flabs returns a pre-booking ID to track it.</p>
       </div>
-    </div>
+    </div>}
+    {embedded && <div className="trace-subhead">Pre-booking (POST /client/billing/create) · no corporate needed</div>}
 
     <div className="plain-hint">
       <RefreshCw size={15} />
@@ -180,7 +185,7 @@ export default function PreBookingForm() {
 
     <div className="booking-layout">
       <div className="booking-main">
-        <section className="access-card">
+        {!embedded && <section className="access-card">
           <div className="access-card-head"><div><h2>1. Lab account</h2><p>Pre-bookings go to a lab account. Corporate and referral accounts are not used here.</p></div></div>
           <div className="form-grid">
             <label className="field"><span>Flabs lab account *</span>
@@ -191,10 +196,10 @@ export default function PreBookingForm() {
             </label>
             <div className="field"><span>Lab ID (labID)</span>{options?.connection.branchId ? <code>{options.connection.branchId}</code> : <small>No lab selected on this account. Edit it in Test Catalog.</small>}</div>
           </div>
-        </section>
+        </section>}
 
         <section className="access-card">
-          <div className="access-card-head"><div><h2>2. Patient details</h2><p>Flabs needs first name, gender, age and age unit.</p></div></div>
+          <div className="access-card-head"><div><h2>{embedded ? 1 : 2}. Patient details</h2><p>Flabs needs first name, gender, age and age unit.</p></div></div>
           <div className="form-grid">
             <label className="field"><span>First name *</span><input value={f.first_name} onChange={set("first_name")} /></label>
             <label className="field"><span>Last name</span><input value={f.last_name} onChange={set("last_name")} /></label>
@@ -209,7 +214,7 @@ export default function PreBookingForm() {
         </section>
 
         <section className="access-card">
-          <div className="access-card-head"><div><h2>3. Tracking and billing</h2><p>Lead source, rate list, doctor and hospital come from the Pre-booking setup below.</p></div></div>
+          <div className="access-card-head"><div><h2>{embedded ? 2 : 3}. Tracking and billing</h2><p>Lead source, rate list, doctor and hospital come from the Pre-booking setup below.</p></div></div>
           <div className="form-grid">
             <label className="field"><span>Lead source *</span>
               {settings.leadSources.length
@@ -240,7 +245,7 @@ export default function PreBookingForm() {
 
         <section className="access-card">
           <div className="access-card-head">
-            <div><h2>4. Tests and packages</h2><p>Mapped items go by Flabs ID. Unmapped items go by name and Flabs has to match them by hand.</p></div>
+            <div><h2>{embedded ? 3 : 4}. Tests and packages</h2><p>Mapped items go by Flabs ID. Unmapped items go by name and Flabs has to match them by hand.</p></div>
             <Button variant="outline" size="sm" disabled={syncing || !connectionId} onClick={() => void syncTests()}><RefreshCw size={14} className={syncing ? "spin" : ""} /> {syncing ? "Syncing…" : "Sync now"}</Button>
           </div>
           <div className="plain-hint">
