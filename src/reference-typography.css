@@ -1,0 +1,21 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;500;600;700&display=swap');
+
+:root,
+body,
+button,
+input,
+select,
+textarea,
+table {
+  font-family: 'Roboto Condensed', 'Arial Narrow', Arial, sans-serif;
+}
+
+.brand-name,
+.page-heading h1,
+.section-heading h2,
+.access-card-head h2,
+.access-stat b,
+.placeholder-card h2 {
+  font-family: 'Roboto Condensed', 'Arial Narrow', Arial, sans-serif;
+}
+

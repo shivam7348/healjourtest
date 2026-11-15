@@ -1,0 +1,56 @@
+/* Light sidebar inspired by the clean lab-management navigation reference. */
+[data-slot="sidebar-inner"] {
+  border-right: 1px solid #f0f2f5;
+  box-shadow: none;
+}
+[data-slot="sidebar-container"] { border-color: #f0f2f5 !important; }
+[data-slot="sidebar-rail"]::after { background: #e9edf2 !important; }
+
+.brand { padding-bottom: 24px; }
+.brand-mark { background: #eef4ff; color: #2d5cf2; border: 1px solid #d9e4ff; }
+.brand-name { color: #111827; }
+.brand-sub, .workspace-label, .nav-label { color: #8993a4; }
+
+.workspace {
+  background: #f8faff;
+  border-color: #e3e8f0;
+  box-shadow: none;
+}
+.workspace-avatar { background: #e8efff; color: #2d5cf2; }
+.workspace b, .user-profile b { color: #202938; }
+.workspace small, .user-profile small { color: #7b8798; }
+
+[data-slot="sidebar-content"] {
+  scrollbar-color: #c4cad4 transparent;
+}
+[data-slot="sidebar-content"]::-webkit-scrollbar-thumb { background: #c4cad4; }
+
+[data-sidebar="menu-button"] {
+  min-height: 40px;
+  border-radius: 9px;
+  color: #374151;
+}
+[data-sidebar="menu-button"]:hover:not([data-active]) {
+  background: #f4f6f9;
+  color: #111827;
+}
+[data-sidebar="menu-button"][data-active] {
+  background: #eef4ff;
+  color: #2458e6;
+  font-weight: 600;
+  box-shadow: inset 3px 0 #2d5cf2;
+}
+[data-sidebar="menu-button"][data-active] svg { color: #2458e6; }
+[data-sidebar="menu-button"]:focus-visible { border-color: rgb(45 92 242 / 0.45); }
+
+.secure-chip {
+  background: #f8faff;
+  border-color: #dfe6f0;
+  color: #2d5cf2;
+}
+.secure-chip b { color: #263244; }
+.secure-chip small { color: #7b8798; }
+.user-profile { border-top-color: #e3e8f0; }
+.user-profile .icon-button { color: #778397; }
+.user-profile .icon-button:hover { background: #eef4ff; color: #2458e6; }
+

@@ -21,14 +21,14 @@
   --input: #dbe4ff;
   --ring: #2d5cf2;
 
-  --sidebar: #0a0a0a;
-  --sidebar-foreground: #c3ccdb;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #202938;
   --sidebar-primary: #2d5cf2;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #244b83;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #1d2533;
-  --sidebar-ring: #78a7ff;
+  --sidebar-accent: #eef4ff;
+  --sidebar-accent-foreground: #2458e6;
+  --sidebar-border: #e3e8f0;
+  --sidebar-ring: #2d5cf2;
 }
 
 /* Pre-booking setup: name + Flabs ID + remove button on one row */

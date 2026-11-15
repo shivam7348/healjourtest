@@ -2,7 +2,9 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "../index.css";
 import "../styles.css";
+import "../sidebar-light.css";
 import "../core-layers.css";
+import "../reference-typography.css";
 
 export const metadata: Metadata = {
   title: "Healjour Integration Studio",
