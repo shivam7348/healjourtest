@@ -471,7 +471,7 @@ function MapEditor({ kind, connectionId, item, flabsList, onDone }: {
   const canPick = Boolean(flabsList?.available && list.length);
   const [flabsId, setFlabsId] = useState(item.flabsId ?? "");
   const [flabsName, setFlabsName] = useState(item.flabsName ?? "");
-  const [filter, setFilter] = useState(canPick ? item.name.split(/\s+/)[0] ?? "" : "");
+  const [filter, setFilter] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const f = filter.trim().toLowerCase();
