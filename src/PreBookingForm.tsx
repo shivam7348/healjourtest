@@ -497,14 +497,16 @@ export function MapEditor({ kind, connectionId, item, flabsList, onDone }: {
   };
 
   return <div className="map-editor">
-    {canPick ? <div className="form-grid">
-      <label className="field"><span>Search Flabs {kind}s</span><input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Name or code" /></label>
-      <label className="field"><span>Flabs {kind} *</span>
-        <select value={flabsId} onChange={e => setFlabsId(e.target.value)}>
-          <option value="">Choose</option>
-          {options.map(o => <option key={o._id} value={o._id}>{o.name}{o.code ? ` (${o.code})` : ""}{o.cost ? ` · ₹${o.cost}` : ""}</option>)}
-        </select>
-      </label>
+    {canPick ? <div className="flabs-search">
+      <label className="field"><span>Find the Flabs {kind} *</span><input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Type a name or code, e.g. cbc" autoFocus /></label>
+      <div className="flabs-results" role="listbox" aria-label={`Flabs ${kind}s`}>
+        {options.map(o => <button type="button" key={o._id} role="option" aria-selected={flabsId === o._id}
+          className={`flabs-option ${flabsId === o._id ? "on" : ""}`} onClick={() => { setFlabsId(o._id); setFlabsName(o.name); }}>
+          <b>{o.name}</b><small>{[o.code, o.cost ? `₹${o.cost}` : ""].filter(Boolean).join(" · ")}</small>
+        </button>)}
+        {options.length === 0 && <p className="delivery-reason">No {kind} matches "{filter}".</p>}
+      </div>
+      {flabsId && <small className="flabs-chosen">Chosen: <b>{flabsName || flabsId}</b></small>}
     </div> : <div className="form-grid">
       <label className="field"><span>Flabs {kind} ID *</span><input value={flabsId} onChange={e => setFlabsId(e.target.value)} placeholder="ID given by Flabs" /></label>
       <label className="field"><span>Name in Flabs</span><input value={flabsName} onChange={e => setFlabsName(e.target.value)} placeholder={item.name} /></label>
