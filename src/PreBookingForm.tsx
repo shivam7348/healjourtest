@@ -412,9 +412,9 @@ function ReferralTable({ title, hint, rows, setRows }: { title: string; hint: st
   </div>;
 }
 
-type FlabsItem = { _id: string; name: string; code: string; cost: number };
-type FlabsCatalog = { available: boolean; tests: FlabsItem[]; packages: FlabsItem[]; error?: string };
-type MapItem = PickerItem & { flabsId?: string | null; flabsName?: string | null };
+export type FlabsItem = { _id: string; name: string; code: string; cost: number };
+export type FlabsCatalog = { available: boolean; tests: FlabsItem[]; packages: FlabsItem[]; error?: string };
+export type MapItem = PickerItem & { flabsId?: string | null; flabsName?: string | null };
 
 /**
  * Every test or package as a ticked list: name, code, price, and its Flabs mapping.
@@ -464,7 +464,7 @@ function CatalogChecklist({ label, kind, connectionId, flabsList, onMapped, item
   </div>;
 }
 
-function MapEditor({ kind, connectionId, item, flabsList, onDone }: {
+export function MapEditor({ kind, connectionId, item, flabsList, onDone }: {
   kind: "test" | "package"; connectionId: string; item: MapItem; flabsList: FlabsCatalog | null; onDone: () => void;
 }) {
   const list = (kind === "test" ? flabsList?.tests : flabsList?.packages) ?? [];

@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import { CheckCircle2, Send, X } from "lucide-react";
 import DateTimeField from "./DateTimeField";
+import { MapEditor, type FlabsCatalog, type MapItem } from "./PreBookingForm";
 
 type Connection = { id: string; label: string; branchId: string | null; phase: "lead" | "booking"; party: { field: string; id: string } | null; isDefault: boolean };
 type Option = { code: string; name: string; price: number; mapped: boolean; flabsCost?: number | null };
@@ -57,14 +58,17 @@ export default function FlabsBookingForm() {
     })();
   }, []);
 
+  const [optionsVersion, setOptionsVersion] = useState(0); // bumped after a mapping is saved
+
   useEffect(() => {
     if (!connectionId) return;
     void (async () => {
       const res = await fetch(`/api/flabs/booking-options?connectionId=${encodeURIComponent(connectionId)}`);
       if (res.ok) setOptions(await res.json());
     })();
-    setTestCodes([]); setPackageCodes([]);
-  }, [connectionId]);
+  }, [connectionId, optionsVersion]);
+
+  useEffect(() => { setTestCodes([]); setPackageCodes([]); }, [connectionId]);
 
   const toggle = (list: string[], code: string, set: (v: string[]) => void) =>
     set(list.includes(code) ? list.filter(c => c !== code) : [...list, code]);
@@ -239,6 +243,7 @@ export default function FlabsBookingForm() {
             items={options?.tests ?? []}
             selected={testCodes}
             onChange={setTestCodes}
+            connectionId={connectionId} kind="test" onMapped={() => setOptionsVersion(v => v + 1)}
             describe={t => `₹${t.flabsCost ?? t.price} · ${t.mapped ? "mapped" : "unmapped"}`}
           />
           <CatalogPicker
@@ -247,6 +252,7 @@ export default function FlabsBookingForm() {
             items={options?.packages ?? []}
             selected={packageCodes}
             onChange={setPackageCodes}
+            connectionId={connectionId} kind="package" onMapped={() => setOptionsVersion(v => v + 1)}
             describe={p => `₹${p.price} · ${p.mapped ? "mapped" : "unmapped"}`}
           />
           <RowList title="Unmapped tests (name + amount)" rows={unmappedTests} setRows={setUnmappedTests} />
@@ -331,11 +337,19 @@ export type PickerItem = { code: string; name: string; price: number; mapped: bo
  * Search-only picker: nothing is listed until you type. Matches appear below the box;
  * clicking one adds it, and each added item shows as a chip that can be removed.
  */
-export function CatalogPicker({ label, placeholder, items, selected, onChange, describe }: {
+export function CatalogPicker({ label, placeholder, items, selected, onChange, describe, connectionId, kind, onMapped }: {
   label: string; placeholder: string; items: PickerItem[]; selected: string[];
   onChange: (codes: string[]) => void; describe: (item: PickerItem) => string;
+  connectionId?: string; kind?: "test" | "package"; onMapped?: () => void;
 }) {
   const [query, setQuery] = useState("");
+  const [mapFor, setMapFor] = useState<string | null>(null);
+  const [flabsList, setFlabsList] = useState<FlabsCatalog | null>(null);
+  useEffect(() => {
+    setFlabsList(null);
+    if (!connectionId) return;
+    void fetch(`/api/flabs/connections/${encodeURIComponent(connectionId)}/flabs-catalog`).then(r => r.json()).then(setFlabsList).catch(() => undefined);
+  }, [connectionId]);
   const q = query.trim().toLowerCase();
   const matches = q
     ? items.filter(i => !selected.includes(i.code) && (i.name.toLowerCase().includes(q) || i.code.toLowerCase().includes(q))).slice(0, 8)
@@ -346,10 +360,17 @@ export function CatalogPicker({ label, placeholder, items, selected, onChange, d
     <div className="trace-subhead">{label}</div>
     <input className="list-search" placeholder={placeholder} value={query} onChange={e => setQuery(e.target.value)} />
     {matches.length > 0 && <div className="catalog-picker-results">
-      {matches.map(i => <Button variant="ghost" key={i.code} className="h-auto catalog-picker-item" onClick={() => { onChange([...selected, i.code]); setQuery(""); }}>
-        <span><b>{i.name}</b><small>{i.code}</small></span>
-        <em>{describe(i)}</em>
-      </Button>)}
+      {matches.map(i => <div key={i.code} className="catalog-picker-row">
+        <Button variant="ghost" className="h-auto catalog-picker-item" onClick={() => { onChange([...selected, i.code]); setQuery(""); }}>
+          <span><b>{i.name}</b><small>{i.code}</small></span>
+          <em>{describe(i)}</em>
+        </Button>
+        {connectionId && kind && <Button variant="outline" size="sm" onClick={() => setMapFor(mapFor === i.code ? null : i.code)}>
+          {mapFor === i.code ? "Close" : i.mapped ? "Change" : "Map"}
+        </Button>}
+        {connectionId && kind && mapFor === i.code && <MapEditor kind={kind} connectionId={connectionId} item={i as MapItem} flabsList={flabsList}
+          onDone={() => { setMapFor(null); onMapped?.(); }} />}
+      </div>)}
     </div>}
     {q && matches.length === 0 && <p className="delivery-reason">No {label.toLowerCase()} match "{query}".</p>}
     {chosen.length > 0 && <div className="catalog-chips">
