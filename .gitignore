@@ -7,3 +7,4 @@ node_modules/
 backups/
 .env*.local
 .sandbox/
+.next-test/

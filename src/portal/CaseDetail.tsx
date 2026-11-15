@@ -1,9 +1,32 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, Download, Eye, EyeOff, FileUp, MessageSquare, Save, X } from "lucide-react";
+import { Ban, Calendar, Check, CheckCircle2, Download, Eye, EyeOff, FileUp, Home, MessageSquare, Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api, fmtDate, STATUS_LABEL, type CaseStatus, type LabCase, type ResultRow, type Role } from "./api";
 
 const MAX_BYTES = 3 * 1024 * 1024;
+
+/** The happy path a case walks through; shown as a progress bar. */
+const STEPS: Array<{ status: CaseStatus; label: string }> = [
+  { status: "new", label: "New" }, { status: "accepted", label: "Accepted" }, { status: "sample_collected", label: "Sample" },
+  { status: "processing", label: "Processing" }, { status: "report_ready", label: "Report" }, { status: "completed", label: "Done" }
+];
+/** Button words for each move (the chip shows the state; the button says what you do). */
+const ACTION: Record<CaseStatus, string> = {
+  new: "New", accepted: "Accept case", sample_collected: "Mark sample collected", processing: "Start processing",
+  report_ready: "Mark report ready", completed: "Complete case", rejected: "Reject", cancelled: "Cancel case"
+};
+
+function Stepper({ status }: { status: CaseStatus }) {
+  if (status === "rejected" || status === "cancelled") {
+    return <div className="case-stepper stopped"><Ban size={14} /> {STATUS_LABEL[status]}</div>;
+  }
+  const at = STEPS.findIndex(s => s.status === status);
+  return <ol className="case-stepper">
+    {STEPS.map((s, i) => <li key={s.status} className={i < at ? "done" : i === at ? "current" : ""}>
+      <span className="dot">{i < at ? <Check size={11} /> : i + 1}</span><small>{s.label}</small>
+    </li>)}
+  </ol>;
+}
 
 export const StatusChip = ({ status }: { status: CaseStatus }) => <span className={`case-status ${status}`}>{STATUS_LABEL[status]}</span>;
 
@@ -49,7 +72,9 @@ export function CaseDetail({ caseId, role, onChanged, onClose }: { caseId: strin
   const [results, setResults] = useState<ResultRow[]>([]);
   const [note, setNote] = useState("");
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [stopping, setStopping] = useState<CaseStatus | null>(null); // reject or cancel waiting for a reason
   const canEdit = role !== "lab_viewer";
+  useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(""), 4000); return () => clearTimeout(t); }, [notice]);
 
   const load = async () => {
     try {
@@ -60,17 +85,17 @@ export function CaseDetail({ caseId, role, onChanged, onClose }: { caseId: strin
       setResults(data.case.tests.map(t => data.case.results.find(r => r.testCode === t.code) ?? { testCode: t.code, testName: t.name, value: "", unit: "", referenceRange: "", flag: "" }));
     } catch (e) { setError(e instanceof Error ? e.message : "Could not load the case."); }
   };
-  useEffect(() => { setC(null); setError(""); setNotice(""); setPreviewId(null); void load(); }, [caseId]);
+  useEffect(() => { setC(null); setError(""); setNotice(""); setPreviewId(null); setStopping(null); void load(); }, [caseId]);
 
   const act = async (task: () => Promise<unknown>, done: string) => {
     setBusy(true); setError(""); setNotice("");
-    try { await task(); setNotice(done); setReason(""); await load(); onChanged(); }
+    try { await task(); setNotice(done); setReason(""); setStopping(null); await load(); onChanged(); }
     catch (e) { setError(e instanceof Error ? e.message : "Something went wrong."); }
     finally { setBusy(false); }
   };
 
   const moveTo = (status: CaseStatus) => {
-    if ((status === "rejected" || status === "cancelled") && !reason.trim()) { setError("Write the reason first, then press the button again."); return; }
+    if ((status === "rejected" || status === "cancelled") && !reason.trim()) { setStopping(status); setError(""); return; }
     void act(() => api(`/api/portal/cases/${caseId}/status`, { body: { status, note: reason.trim() || undefined } }), `Moved to ${STATUS_LABEL[status]}.`);
   };
 
@@ -88,36 +113,47 @@ export function CaseDetail({ caseId, role, onChanged, onClose }: { caseId: strin
   if (!c) return <div className="case-detail"><p className="delivery-reason">Loading…</p></div>;
   const closed = ["completed", "rejected", "cancelled"].includes(c.status);
 
+  const forward = next.filter(x => x.value !== "rejected" && x.value !== "cancelled");
+  const stops = next.filter(x => x.value === "rejected" || x.value === "cancelled");
+
   return <div className="case-detail">
     <div className="case-detail-head">
       <div>
-        <div className="eyebrow">{c.labName}</div>
-        <h2>{c.caseNo} <StatusChip status={c.status} /></h2>
-        <p>{c.patient.name} · {c.patient.gender} · {c.patient.age} {c.patient.ageUnit}{c.patient.phone ? ` · ${c.patient.phone}` : ""}</p>
+        <div className="case-detail-meta">{c.caseNo} · {c.labName}</div>
+        <h2>{c.patient.name} <StatusChip status={c.status} /></h2>
+        <p>{c.patient.gender} · {c.patient.age} {c.patient.ageUnit}{c.patient.phone ? ` · ${c.patient.phone}` : ""}</p>
       </div>
-      <Button variant="outline" size="sm" onClick={onClose}><X size={14} /> Close</Button>
+      <Button variant="outline" size="sm" onClick={onClose} aria-label="Close"><X size={14} /></Button>
     </div>
+
+    <Stepper status={c.status} />
+
+    {notice && <div className="case-toast"><CheckCircle2 size={15} />{notice}</div>}
+    {error && <div className="access-message error"><X size={16} />{error}</div>}
+
+    {(forward.length > 0 || stops.length > 0) && <div className="case-actions">
+      <div className="case-actions-row">
+        {forward.map(x => <Button key={x.value} variant="default" disabled={busy || (x.value === "report_ready" && c.reports.length === 0)} onClick={() => moveTo(x.value)}>
+          <Check size={15} /> {ACTION[x.value]}
+        </Button>)}
+        {stops.map(x => <Button key={x.value} variant="destructive" disabled={busy} onClick={() => { setStopping(stopping === x.value ? null : x.value); setError(""); }}>{ACTION[x.value]}</Button>)}
+      </div>
+      {forward.some(x => x.value === "report_ready") && c.reports.length === 0 && <small className="muted">Upload the report below to mark it ready.</small>}
+      {stopping && <div className="case-stop">
+        <input autoFocus value={reason} onChange={e => setReason(e.target.value)} placeholder={stopping === "rejected" ? "Why is the lab rejecting it? e.g. sample haemolysed" : "Why is it cancelled?"} />
+        <Button variant="destructive" size="sm" disabled={busy || !reason.trim()} onClick={() => moveTo(stopping)}>Confirm</Button>
+        <Button variant="outline" size="sm" onClick={() => { setStopping(null); setReason(""); }}>Back</Button>
+      </div>}
+    </div>}
 
     <div className="case-facts">
-      <div><span>Priority</span><b className={`prio ${c.priority}`}>{c.priority}</b></div>
-      <div><span>Collection</span><b>{c.collection === "home" ? "Home collection" : "Lab visit"}</b></div>
-      <div><span>Scheduled</span><b>{fmtDate(c.scheduledAt)}</b></div>
-      <div><span>Sent</span><b>{fmtDate(c.createdAt)}</b></div>
+      <div><span>Priority</span><b><span className={`prio ${c.priority}`}>{c.priority}</span></b></div>
+      <div><span>Collection</span><b>{c.collection === "home" ? <><Home size={13} /> Home</> : "Lab visit"}</b></div>
+      <div><span>Scheduled</span><b>{c.scheduledAt ? <><Calendar size={13} /> {fmtDate(c.scheduledAt)}</> : "Not set"}</b></div>
+      <div><span>Received</span><b>{fmtDate(c.createdAt)}</b></div>
     </div>
-    <div className="case-tests">{c.tests.map(t => <span key={t.code} className="catalog-chip">{t.name} <small>({t.code})</small></span>)}</div>
-    {c.notes && <div className="plain-hint"><span><b>Note from Healjour:</b> {c.notes}</span></div>}
-
-    {error && <div className="access-message error"><X size={16} />{error}</div>}
-    {notice && <div className="access-message success"><CheckCircle2 size={16} />{notice}</div>}
-
-    {next.length > 0 && <section className="case-block">
-      <h3>Update status</h3>
-      <div className="builder-actions">
-        {next.map(s => <Button key={s.value} variant={s.value === "rejected" || s.value === "cancelled" ? "destructive" : "default"} size="sm" disabled={busy} onClick={() => moveTo(s.value)}>{s.label}</Button>)}
-      </div>
-      {next.some(s => s.value === "rejected" || s.value === "cancelled") && <label className="field"><span>Reason (needed to reject or cancel)</span><input value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. sample haemolysed, patient not available" /></label>}
-      {next.some(s => s.value === "report_ready") && c.reports.length === 0 && <small className="muted">Upload the report below before marking it ready.</small>}
-    </section>}
+    <div className="case-tests">{c.tests.map(t => <span key={t.code} className="case-test">{t.name} <small>{t.code}</small></span>)}</div>
+    {c.notes && <div className="case-note-from"><b>Note from Healjour</b>{c.notes}</div>}
 
     <section className="case-block">
       <h3>Results</h3>
