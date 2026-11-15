@@ -1,11 +1,42 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, Download, FileUp, MessageSquare, Save, X } from "lucide-react";
+import { CheckCircle2, Download, Eye, EyeOff, FileUp, MessageSquare, Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api, fmtDate, STATUS_LABEL, type CaseStatus, type LabCase, type ResultRow, type Role } from "./api";
 
 const MAX_BYTES = 3 * 1024 * 1024;
 
 export const StatusChip = ({ status }: { status: CaseStatus }) => <span className={`case-status ${status}`}>{STATUS_LABEL[status]}</span>;
+
+/**
+ * Shows an uploaded report right in the case: images as a picture, PDFs in the browser's PDF viewer.
+ * The file is fetched with the user's session and shown from a local blob URL, so it never needs a public link.
+ */
+function ReportPreview({ url, mimeType, fileName }: { url: string; mimeType: string; fileName: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(url, { credentials: "same-origin" });
+        if (!res.ok) throw new Error("Could not load the report.");
+        const blob = new Blob([await res.arrayBuffer()], { type: mimeType });
+        objectUrl = URL.createObjectURL(blob);
+        if (!cancelled) setSrc(objectUrl);
+      } catch (e) { if (!cancelled) setError(e instanceof Error ? e.message : "Could not load the report."); }
+    })();
+    return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [url, mimeType]);
+
+  if (error) return <div className="report-preview"><p className="delivery-reason">{error}</p></div>;
+  if (!src) return <div className="report-preview"><p className="delivery-reason">Loading preview…</p></div>;
+  return <div className="report-preview">
+    {mimeType === "application/pdf"
+      ? <iframe src={src} title={`Preview of ${fileName}`} />
+      : <a href={src} target="_blank" rel="noreferrer" title="Open full size"><img src={src} alt={`Preview of ${fileName}`} /></a>}
+  </div>;
+}
 
 /** One case: patient, tests, status actions, results, reports and timeline. Same view for labs and Healjour. */
 export function CaseDetail({ caseId, role, onChanged, onClose }: { caseId: string; role: Role; onChanged: () => void; onClose: () => void }) {
@@ -17,17 +48,19 @@ export function CaseDetail({ caseId, role, onChanged, onClose }: { caseId: strin
   const [reason, setReason] = useState("");
   const [results, setResults] = useState<ResultRow[]>([]);
   const [note, setNote] = useState("");
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const canEdit = role !== "lab_viewer";
 
   const load = async () => {
     try {
       const data = await api<{ case: LabCase; nextStatuses: Array<{ value: CaseStatus; label: string }> }>(`/api/portal/cases/${caseId}`);
       setC(data.case); setNext(data.nextStatuses);
+      setPreviewId(prev => prev ?? data.case.reports[data.case.reports.length - 1]?.id ?? null);
       // One result row per test; keep what was entered before.
       setResults(data.case.tests.map(t => data.case.results.find(r => r.testCode === t.code) ?? { testCode: t.code, testName: t.name, value: "", unit: "", referenceRange: "", flag: "" }));
     } catch (e) { setError(e instanceof Error ? e.message : "Could not load the case."); }
   };
-  useEffect(() => { setC(null); setError(""); setNotice(""); void load(); }, [caseId]);
+  useEffect(() => { setC(null); setError(""); setNotice(""); setPreviewId(null); void load(); }, [caseId]);
 
   const act = async (task: () => Promise<unknown>, done: string) => {
     setBusy(true); setError(""); setNotice("");
@@ -46,7 +79,8 @@ export function CaseDetail({ caseId, role, onChanged, onClose }: { caseId: strin
     void act(async () => {
       const buf = new Uint8Array(await file.arrayBuffer());
       let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-      await api(`/api/portal/cases/${caseId}/reports`, { body: { fileName: file.name, mimeType: file.type, dataBase64: btoa(bin) } });
+      const data = await api<{ report: { id: string } }>(`/api/portal/cases/${caseId}/reports`, { body: { fileName: file.name, mimeType: file.type, dataBase64: btoa(bin) } });
+      setPreviewId(data.report.id);
     }, `${file.name} uploaded.`);
   };
 
@@ -109,9 +143,17 @@ export function CaseDetail({ caseId, role, onChanged, onClose }: { caseId: strin
     <section className="case-block">
       <h3>Reports</h3>
       {c.reports.length === 0 ? <p className="delivery-reason">No report uploaded yet.</p> : <ul className="case-reports">
-        {c.reports.map(r => <li key={r.id}>
-          <span><b>{r.fileName}</b><small>{(r.size / 1024).toFixed(0)} KB · {r.uploadedBy} · {fmtDate(r.uploadedAt)}</small></span>
-          <a className="case-download" href={`/api/portal/cases/${caseId}/reports/${r.id}`}><Download size={13} /> Download</a>
+        {c.reports.map(r => <li key={r.id} className={previewId === r.id ? "is-previewing" : ""}>
+          <div className="case-report-row">
+            <span><b>{r.fileName}</b><small>{(r.size / 1024).toFixed(0)} KB · {r.uploadedBy} · {fmtDate(r.uploadedAt)}</small></span>
+            <span className="case-report-actions">
+              <Button variant="outline" size="sm" onClick={() => setPreviewId(previewId === r.id ? null : r.id)}>
+                {previewId === r.id ? <><EyeOff size={13} /> Hide</> : <><Eye size={13} /> Preview</>}
+              </Button>
+              <a className="case-download" href={`/api/portal/cases/${caseId}/reports/${r.id}`}><Download size={13} /> Download</a>
+            </span>
+          </div>
+          {previewId === r.id && <ReportPreview url={`/api/portal/cases/${caseId}/reports/${r.id}`} mimeType={r.mimeType} fileName={r.fileName} />}
         </li>)}
       </ul>}
       {canEdit && !closed && <label className="case-upload">
