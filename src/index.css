@@ -270,6 +270,11 @@
 .catalog-picker-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
 .catalog-picker-row > .map-editor { grid-column: 1 / -1; }
 
+/* Create a new test from the booking search */
+.create-new-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%; margin-top: 6px; padding: 10px 12px; border: 1px dashed #9fb3f5; border-radius: 9px; background: #f8faff; color: #2d5cf2; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.create-new-row span { color: #6b7a91; }
+.create-new-form { display: grid; gap: 10px; margin-top: 8px; padding: 12px; border: 1px solid #dbe4ff; border-radius: 10px; background: #fbfcff; }
+
 /* Searchable Flabs list in the map editor */
 .flabs-search { display: grid; gap: 8px; }
 .flabs-results { max-height: 240px; overflow-y: auto; display: grid; gap: 4px; padding: 4px; border: 1px solid #dbe4ff; border-radius: 9px; background: #fff; }

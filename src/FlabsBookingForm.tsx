@@ -243,7 +243,7 @@ export default function FlabsBookingForm() {
             items={options?.tests ?? []}
             selected={testCodes}
             onChange={setTestCodes}
-            connectionId={connectionId} kind="test" onMapped={() => setOptionsVersion(v => v + 1)}
+            connectionId={connectionId} kind="test" creatable onMapped={() => setOptionsVersion(v => v + 1)}
             describe={t => `₹${t.flabsCost ?? t.price} · ${t.mapped ? "mapped" : "unmapped"}`}
           />
           <CatalogPicker
@@ -337,13 +337,41 @@ export type PickerItem = { code: string; name: string; price: number; mapped: bo
  * Search-only picker: nothing is listed until you type. Matches appear below the box;
  * clicking one adds it, and each added item shows as a chip that can be removed.
  */
-export function CatalogPicker({ label, placeholder, items, selected, onChange, describe, connectionId, kind, onMapped }: {
+export function CatalogPicker({ label, placeholder, items, selected, onChange, describe, connectionId, kind, onMapped, creatable }: {
   label: string; placeholder: string; items: PickerItem[]; selected: string[];
   onChange: (codes: string[]) => void; describe: (item: PickerItem) => string;
   connectionId?: string; kind?: "test" | "package"; onMapped?: () => void;
+  /** Tests only: offer "create new test" when the search finds nothing. */
+  creatable?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [mapFor, setMapFor] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [draft, setDraft] = useState({ code: "", name: "", price: "" });
+  const [createError, setCreateError] = useState("");
+  const [createBusy, setCreateBusy] = useState(false);
+  const exact = items.some(i => i.code.toLowerCase() === q || i.name.toLowerCase() === q);
+
+  const openCreate = () => {
+    setDraft({ code: query.trim().toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 30), name: query.trim(), price: "" });
+    setCreateError(""); setCreating(true);
+  };
+  const saveNewTest = async () => {
+    setCreateBusy(true); setCreateError("");
+    try {
+      const body = { code: draft.code, name: draft.name.trim(), price: Number(draft.price || 0), active: true };
+      const res = await fetch("/api/catalog/tests", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not create the test.");
+      // The new test is chosen straight away; it is not mapped yet, so it goes to Flabs by name until mapped.
+      onChange([...selected, draft.code]);
+      setCreating(false); setQuery("");
+      onMapped?.();
+    } catch (e) { setCreateError(e instanceof Error ? e.message : "Could not create the test."); }
+    finally { setCreateBusy(false); }
+  };
+  const codeOk = /^[A-Z0-9-]{2,30}$/.test(draft.code) && !items.some(i => i.code === draft.code);
+  const formOk = codeOk && draft.name.trim().length >= 2 && Number(draft.price || 0) >= 0;
   const [flabsList, setFlabsList] = useState<FlabsCatalog | null>(null);
   useEffect(() => {
     setFlabsList(null);
@@ -372,7 +400,24 @@ export function CatalogPicker({ label, placeholder, items, selected, onChange, d
           onDone={() => { setMapFor(null); onMapped?.(); }} />}
       </div>)}
     </div>}
-    {q && matches.length === 0 && <p className="delivery-reason">No {label.toLowerCase()} match "{query}".</p>}
+    {q && matches.length === 0 && !creating && <p className="delivery-reason">No {label.toLowerCase()} match "{query}".</p>}
+    {creatable && q && !exact && !creating && <button type="button" className="create-new-row" onClick={openCreate}>
+      <b>+ Create new test</b> <span>"{query.trim()}" is added to the Healjour catalog and chosen</span>
+    </button>}
+    {creatable && creating && <div className="create-new-form">
+      <div className="trace-subhead">New test</div>
+      <div className="form-grid">
+        <label className="field"><span>Code *</span><input value={draft.code} onChange={e => setDraft({ ...draft, code: e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, "") })} placeholder="e.g. CBC" />
+          {draft.code && !codeOk && <small className="builder-problem">{items.some(i => i.code === draft.code) ? "This code already exists." : "2-30 capital letters, digits or -"}</small>}</label>
+        <label className="field"><span>Name *</span><input value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} /></label>
+        <label className="field"><span>Price ₹</span><input inputMode="decimal" value={draft.price} onChange={e => setDraft({ ...draft, price: e.target.value })} placeholder="0" /></label>
+      </div>
+      {createError && <div className="access-message error">{createError}</div>}
+      <div className="builder-actions">
+        <Button variant="default" size="sm" disabled={createBusy || !formOk} onClick={() => void saveNewTest()}>{createBusy ? "Saving…" : "Save and choose"}</Button>
+        <Button variant="outline" size="sm" onClick={() => setCreating(false)}>Cancel</Button>
+      </div>
+    </div>}
     {chosen.length > 0 && <div className="catalog-chips">
       {chosen.map(i => <span key={i.code} className="catalog-chip">
         {i.name} <small>({i.code})</small>
