@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/PasswordInput";
 import { useEffect, useState } from "react";
 import { CheckCircle2, KeyRound, Link2, Pencil, Plus, Receipt, RefreshCw, ShieldCheck, Star, Trash2, X } from "lucide-react";
 import FlabsMapping from "./FlabsMapping";
@@ -230,7 +231,7 @@ export default function FlabsConnect({ onChanged }: { onChanged: () => void }) {
         </label>
         {form.partyField && <label className="field full"><span>{PARTY_OPTIONS.find(o => o.value === form.partyField)?.label} ID *</span><input value={form.partyId} onChange={e => setForm({ ...form, partyId: e.target.value })} placeholder="Corporate / organization ID from Flabs" /><small>Is account ke saare leads isi party se jayenge, aur rates bhi isi ke hisaab se honge.</small></label>}
         <label className="field"><span>Client ID {form.id ? "(leave empty to keep the same)" : "*"}</span><input value={form.clientId} onChange={e => setForm({ ...form, clientId: e.target.value })} placeholder={form.id ? "" : "Client ID from Flabs"} autoComplete="off" /></label>
-        <label className="field"><span>Client Secret {form.id ? "(leave empty to keep the same)" : "*"}</span><input type="password" value={form.clientSecret} onChange={e => setForm({ ...form, clientSecret: e.target.value })} placeholder="••••••••" autoComplete="new-password" /></label>
+        <label className="field"><span>Client Secret {form.id ? "(leave empty to keep the same)" : "*"}</span><PasswordInput value={form.clientSecret} onChange={e => setForm({ ...form, clientSecret: e.target.value })} placeholder="••••••••" autoComplete="new-password" /></label>
         <label className="field full"><span>Server URL</span><input value={form.baseUrl} onChange={e => setForm({ ...form, baseUrl: e.target.value })} /></label>
       </div>
 

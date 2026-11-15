@@ -86,6 +86,19 @@
 }
 .flabs-account .flabs-tests .plain-hint { margin: 0; }
 
+/* Password fields: show/hide button inside the box */
+.password-input { position: relative; display: block; width: 100%; }
+.password-input input { width: 100%; padding-right: 40px !important; box-sizing: border-box; }
+.password-toggle {
+  position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
+  display: grid; place-items: center; width: 30px; height: 30px; padding: 0;
+  border: 0; border-radius: 6px; background: transparent; color: #6b7a91; cursor: pointer;
+}
+.password-toggle:hover { background: #f1f4fa; color: #1f2937; }
+.password-toggle:focus-visible { outline: 2px solid #2d5cf2; outline-offset: 1px; }
+.match-ok { color: #15803d !important; }
+.match-bad { color: #b45309 !important; }
+
 /* Sign-in and setup */
 .auth-screen { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; background: linear-gradient(160deg, #0a0a0a 0%, #13203a 55%, #2d5cf2 140%); }
 .auth-card { width: 100%; max-width: 420px; display: grid; gap: 12px; padding: 28px; border-radius: 16px; background: #fff; box-shadow: 0 24px 60px #00000040; }
