@@ -8,7 +8,7 @@ import { listDeadLetters, listRuns, replayDeadLetter, sinkCatalog } from "./core
 import { coreTopology, runPipeline, samplePayloads } from "./core/pipeline.js";
 import { connectStore, getStore } from "./core/store.js";
 import type { PartnerLab, StudioIntegration } from "./core/models.js";
-import { deleteWebhook, listTests, listWebhooks, subscribeWebhook, testFlabsConnection } from "./core/flabs/client.js";
+import { deleteWebhook, listPackages, listTests, listWebhooks, PARTY_REQUIRED_HINT, subscribeWebhook, testFlabsConnection } from "./core/flabs/client.js";
 import { FLABS_EVENTS, handleFlabsEvent, type FlabsEvent } from "./core/flabs/webhooks.js";
 import { syncFlabsCatalog } from "./core/flabs/sink.js";
 import { autoPrebook, describeAutoPrebook, ensureCatalogSynced, syncAllInBackground } from "./core/flabs/auto.js";
@@ -663,8 +663,8 @@ app.get("/api/flabs/booking-options", async (req, res) => {
   res.json({
     connection: { id: config.id, label: config.label, branchId: config.branchId ?? null, phase: config.phase, party: config.party ?? null },
     sync,
-    tests: tests.filter(t => t.active).map(t => ({ code: t.code, name: t.name, price: t.price, mapped: testMap.has(t.code), flabsCost: testMap.get(t.code)?.flabsCost ?? null })),
-    packages: packages.filter(p => p.active).map(p => ({ code: p.code, name: p.name, price: p.price, testCodes: p.testCodes, mapped: packageMap.has(p.code) }))
+    tests: tests.filter(t => t.active).map(t => ({ code: t.code, name: t.name, price: t.price, mapped: testMap.has(t.code), flabsCost: testMap.get(t.code)?.flabsCost ?? null, flabsId: testMap.get(t.code)?.flabsId ?? null, flabsName: testMap.get(t.code)?.flabsName ?? null })),
+    packages: packages.filter(p => p.active).map(p => ({ code: p.code, name: p.name, price: p.price, testCodes: p.testCodes, mapped: packageMap.has(p.code), flabsId: packageMap.get(p.code)?.flabsId ?? null, flabsName: packageMap.get(p.code)?.flabsName ?? null }))
   });
 });
 
@@ -881,35 +881,76 @@ app.get("/api/flabs/connections/:id/mapping-view", async (req, res) => {
   }
 });
 
-// Staff choice: map a Healjour test to a specific Flabs test of this account. Kept across syncs.
-app.put("/api/flabs/connections/:id/mappings/test/:code", async (req, res) => {
+// Flabs' own tests and packages for one account, for the "Map" dropdowns. Some accounts list them only
+// with a corporate; then `available` is false and staff type the Flabs ID by hand.
+app.get("/api/flabs/connections/:id/flabs-catalog", async (req, res) => {
   const config = getFlabsConfig(req.params.id);
   if (!config || !config.branchId) return res.status(404).json({ error: "Connection not found or has no branch." });
-  const parsed = z.object({ flabsId: z.string().min(1).max(64) }).safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Choose a Flabs test." });
-  const store = getStore();
-  const catalogTest = (await store.listCatalogTests()).find(t => t.code === req.params.code);
-  if (!catalogTest) return res.status(404).json({ error: "Healjour test not found." });
   try {
-    const live = (await listTests(config, config.branchId)).find(t => t._id === parsed.data.flabsId);
-    if (!live) return res.status(400).json({ error: "That test is not in this account's Flabs list." });
-    const rest = (await store.listFlabsMappings(config.id)).filter(m => !(m.kind === "test" && m.healjourCode === catalogTest.code));
-    await store.replaceFlabsMappings(config.id, [...rest, {
-      connectionId: config.id, kind: "test", healjourCode: catalogTest.code,
-      flabsId: live._id, flabsCode: live.code, flabsName: live.name, flabsCost: live.cost,
-      source: "manual", syncedAt: new Date().toISOString()
-    }]);
-    res.json({ ok: true, message: `${catalogTest.code} mapped to Flabs "${live.name}".` });
+    const [tests, packages] = await Promise.all([listTests(config, config.branchId), listPackages(config, config.branchId)]);
+    res.json({
+      available: true,
+      tests: tests.map(t => ({ _id: t._id, name: t.name, code: t.code, cost: t.cost })),
+      packages: packages.map(p => ({ _id: p._id, name: p.name, code: p.code, cost: p.total }))
+    });
   } catch (error) {
-    res.status(502).json({ error: error instanceof Error ? error.message : "Flabs did not return tests." });
+    res.json({ available: false, tests: [], packages: [], error: error instanceof Error ? error.message : "Flabs did not return its list." });
   }
 });
 
-app.delete("/api/flabs/connections/:id/mappings/test/:code", async (req, res) => {
+// Staff choice: map a Healjour test or package to a Flabs one of this account. Kept across syncs.
+// When Flabs lists them, the ID must be in the list; when it cannot (corporate-only list), the typed ID is saved as is.
+app.put("/api/flabs/connections/:id/mappings/:kind/:code", async (req, res) => {
+  const kind = req.params.kind;
+  if (kind !== "test" && kind !== "package") return res.status(404).json({ error: "Unknown mapping kind." });
+  const config = getFlabsConfig(req.params.id);
+  if (!config || !config.branchId) return res.status(404).json({ error: "Connection not found or has no branch." });
+  const parsed = z.object({
+    flabsId: z.string().trim().min(1, "Enter the Flabs ID.").max(64),
+    flabsName: z.string().trim().max(160).optional()
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? `Choose a Flabs ${kind}.` });
+  const store = getStore();
+  const item = kind === "test"
+    ? (await store.listCatalogTests()).find(t => t.code === req.params.code)
+    : (await store.listCatalogPackages()).find(p => p.code === req.params.code);
+  if (!item) return res.status(404).json({ error: `Healjour ${kind} not found.` });
+
+  let live: { _id: string; name: string; code: string; cost: number } | undefined;
+  let listed = true;
+  try {
+    live = kind === "test"
+      ? (await listTests(config, config.branchId)).find(t => t._id === parsed.data.flabsId)
+      : (await listPackages(config, config.branchId)).map(p => ({ _id: p._id, name: p.name, code: p.code, cost: p.total })).find(p => p._id === parsed.data.flabsId);
+  } catch (error) {
+    if (!(error instanceof Error && error.message === PARTY_REQUIRED_HINT)) {
+      return res.status(502).json({ error: error instanceof Error ? error.message : "Flabs did not return its list." });
+    }
+    listed = false; // corporate-only list: trust the ID staff typed
+  }
+  if (listed && !live) return res.status(400).json({ error: `That ${kind} is not in this account's Flabs list.` });
+
+  const rest = (await store.listFlabsMappings(config.id)).filter(m => !(m.kind === kind && m.healjourCode === item.code));
+  const flabsName = live?.name ?? parsed.data.flabsName ?? item.name;
+  await store.replaceFlabsMappings(config.id, [...rest, {
+    connectionId: config.id, kind, healjourCode: item.code,
+    flabsId: live?._id ?? parsed.data.flabsId, flabsCode: live?.code ?? "", flabsName, flabsCost: live?.cost ?? 0,
+    source: "manual", syncedAt: new Date().toISOString()
+  }]);
+  await logIntegration({
+    type: "sync", status: "info", account: config.label, title: `${kind === "test" ? "Test" : "Package"} mapped`,
+    message: `${item.code} → Flabs "${flabsName}" (${live?._id ?? parsed.data.flabsId})${listed ? "" : ", ID entered by hand"}.`
+  });
+  res.json({ ok: true, message: `${item.code} mapped to Flabs "${flabsName}".` });
+});
+
+app.delete("/api/flabs/connections/:id/mappings/:kind/:code", async (req, res) => {
+  const kind = req.params.kind;
+  if (kind !== "test" && kind !== "package") return res.status(404).json({ error: "Unknown mapping kind." });
   const config = getFlabsConfig(req.params.id);
   if (!config) return res.status(404).json({ error: "Connection not found." });
   const store = getStore();
-  const rest = (await store.listFlabsMappings(config.id)).filter(m => !(m.kind === "test" && m.healjourCode === req.params.code));
+  const rest = (await store.listFlabsMappings(config.id)).filter(m => !(m.kind === kind && m.healjourCode === req.params.code));
   await store.replaceFlabsMappings(config.id, rest);
   res.json({ ok: true, message: `${req.params.code} is no longer mapped.` });
 });

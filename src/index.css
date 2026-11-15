@@ -90,21 +90,24 @@
 .catalog-checklist { margin: 4px 0 14px; }
 .catalog-checklist-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
 .catalog-checklist-head .list-search { max-width: 260px; }
-.catalog-checklist-rows { display: grid; gap: 6px; max-height: 340px; overflow-y: auto; padding-right: 2px; }
+.catalog-checklist-rows { display: grid; gap: 6px; max-height: 460px; overflow-y: auto; padding-right: 2px; }
+.catalog-check-item { border: 1px solid #e3e9f2; border-radius: 9px; background: #fff; }
+.catalog-check-item:hover { border-color: #b9c8f5; }
+.catalog-check-item.is-on { border-color: #2d5cf2; background: #f4f7ff; }
 .catalog-check-row {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 10px;
-  padding: 9px 12px;
-  border: 1px solid #e3e9f2;
-  border-radius: 9px;
-  background: #fff;
-  cursor: pointer;
+  padding: 8px 10px 8px 12px;
 }
-.catalog-check-row:hover { border-color: #b9c8f5; }
-.catalog-check-row.is-on { border-color: #2d5cf2; background: #f4f7ff; }
-.catalog-check-row input { width: 16px; height: 16px; margin: 0; }
+.catalog-check-pick { display: flex; align-items: center; gap: 10px; min-width: 0; cursor: pointer; }
+.catalog-check-pick input { width: 16px; height: 16px; margin: 0; flex-shrink: 0; }
+.map-editor { display: grid; gap: 8px; padding: 10px 12px 12px; border-top: 1px dashed #dbe4ff; }
+.map-editor-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .catalog-check-row { grid-template-columns: minmax(0, 1fr) auto; }
+}
 .catalog-check-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .catalog-check-main b { font-size: 13px; color: #0a0a0a; }
 .catalog-check-main small { font-size: 11.5px; color: #6b7a91; overflow-wrap: anywhere; }

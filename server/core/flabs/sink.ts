@@ -60,6 +60,13 @@ export async function syncFlabsCatalog(config: FlabsConfig): Promise<SyncReport>
   const packageMappings: FlabsMapping[] = [];
   const packageHealjourOnly: string[] = [];
   for (const pkg of healjourPackages) {
+    // Manual choices survive a sync, like tests.
+    const manual = existing.find(m => m.kind === "package" && m.source === "manual" && m.healjourCode === pkg.code);
+    if (manual) {
+      const live = flabsPackages.find(p => p._id === manual.flabsId);
+      packageMappings.push({ ...manual, flabsCode: live?.code ?? manual.flabsCode, flabsName: live?.name ?? manual.flabsName, flabsCost: live?.total ?? manual.flabsCost, syncedAt: now });
+      continue;
+    }
     const match = flabsPackageByCode.get(pkg.code.toUpperCase());
     if (match) {
       packageMappings.push({ connectionId: config.id, kind: "package", healjourCode: pkg.code, flabsId: match._id, flabsCode: match.code, flabsName: match.name, flabsCost: match.total, syncedAt: now });

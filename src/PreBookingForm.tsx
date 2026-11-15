@@ -51,6 +51,7 @@ export default function PreBookingForm({ connectionId: fixedId, embedded = false
   const [busy, setBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncNote, setSyncNote] = useState("");
+  const [flabsCatalog, setFlabsCatalog] = useState<FlabsCatalog | null>(null);
   const [error, setError] = useState("");
   const [result, setResult] = useState<Result | null>(null);
 
@@ -83,7 +84,8 @@ export default function PreBookingForm({ connectionId: fixedId, embedded = false
     if (!connectionId) return;
     void loadOptions(connectionId);
     void loadSettings(connectionId);
-    setTestCodes([]); setPackageCodes([]); setSyncNote("");
+    setTestCodes([]); setPackageCodes([]); setSyncNote(""); setFlabsCatalog(null);
+    void fetch(`/api/flabs/connections/${encodeURIComponent(connectionId)}/flabs-catalog`).then(r => r.json()).then(setFlabsCatalog).catch(() => undefined);
     setF(prev => ({ ...prev, lead_source: "", rate_list_type: "", doctor: "", hospital: "" }));
   }, [connectionId]);
 
@@ -249,10 +251,12 @@ export default function PreBookingForm({ connectionId: fixedId, embedded = false
             <Button variant="outline" size="sm" disabled={syncing || !connectionId} onClick={() => void syncTests()}><RefreshCw size={14} className={syncing ? "spin" : ""} /> {syncing ? "Syncing…" : "Sync now"}</Button>
           </div>
           <div className="plain-hint">
-            <span>{mappedCount} of {options?.tests.length ?? 0} Healjour tests are mapped to this lab in Flabs. Tests sync and match by code automatically every 30 min; to map by hand, use Test Catalog → Flabs CRM accounts → Map tests.{syncNote ? ` ${syncNote}` : ""}</span>
+            <span>{mappedCount} of {options?.tests.length ?? 0} tests and {(options?.packages ?? []).filter(p => p.mapped).length} of {options?.packages.length ?? 0} packages are mapped to this lab in Flabs. Click <b>Map</b> on any row to link it to its Flabs {flabsCatalog?.available === false ? "ID (Flabs does not list them for this account, so type the ID Flabs gave you)" : "test or package"}.{syncNote ? ` ${syncNote}` : ""}</span>
           </div>
-          <CatalogChecklist label="Tests" items={options?.tests ?? []} selected={testCodes} onChange={setTestCodes} />
-          <CatalogChecklist label="Packages" items={options?.packages ?? []} selected={packageCodes} onChange={setPackageCodes}
+          <CatalogChecklist label="Tests" kind="test" connectionId={connectionId} flabsList={flabsCatalog} onMapped={() => void loadOptions(connectionId)}
+            items={options?.tests ?? []} selected={testCodes} onChange={setTestCodes} />
+          <CatalogChecklist label="Packages" kind="package" connectionId={connectionId} flabsList={flabsCatalog} onMapped={() => void loadOptions(connectionId)}
+            items={options?.packages ?? []} selected={packageCodes} onChange={setPackageCodes}
             detail={p => {
               const codes = (p as PackageOption).testCodes ?? [];
               const names = codes.map(code => options?.tests.find(t => t.code === code)?.name ?? code);
@@ -408,19 +412,29 @@ function ReferralTable({ title, hint, rows, setRows }: { title: string; hint: st
   </div>;
 }
 
-/** Every test or package as a ticked list: name, code, price and whether it goes to Flabs by ID or by name. */
-function CatalogChecklist({ label, items, selected, onChange, detail }: {
-  label: string; items: PickerItem[]; selected: string[]; onChange: (codes: string[]) => void; detail?: (item: PickerItem) => string;
+type FlabsItem = { _id: string; name: string; code: string; cost: number };
+type FlabsCatalog = { available: boolean; tests: FlabsItem[]; packages: FlabsItem[]; error?: string };
+type MapItem = PickerItem & { flabsId?: string | null; flabsName?: string | null };
+
+/**
+ * Every test or package as a ticked list: name, code, price, and its Flabs mapping.
+ * "Map" links a row to a Flabs test/package: picked from Flabs' list, or typed when Flabs does not list them.
+ */
+function CatalogChecklist({ label, kind, connectionId, flabsList, onMapped, items, selected, onChange, detail }: {
+  label: string; kind: "test" | "package"; connectionId: string; flabsList: FlabsCatalog | null; onMapped: () => void;
+  items: MapItem[]; selected: string[]; onChange: (codes: string[]) => void; detail?: (item: PickerItem) => string;
 }) {
   const [query, setQuery] = useState("");
+  const [editing, setEditing] = useState<string | null>(null);
   const q = query.trim().toLowerCase();
   const shown = q ? items.filter(i => i.name.toLowerCase().includes(q) || i.code.toLowerCase().includes(q)) : items;
   const toggle = (code: string) => onChange(selected.includes(code) ? selected.filter(c => c !== code) : [...selected, code]);
   const total = items.filter(i => selected.includes(i.code)).reduce((sum, i) => sum + (i.price || 0), 0);
+  const mapped = items.filter(i => i.mapped).length;
 
   return <div className="catalog-checklist">
     <div className="catalog-checklist-head">
-      <div className="trace-subhead">{label} <small className="muted">({items.length} available{selected.length ? `, ${selected.length} selected${total ? ` · ₹${total}` : ""}` : ""})</small></div>
+      <div className="trace-subhead">{label} <small className="muted">({items.length} available · {mapped} mapped{selected.length ? ` · ${selected.length} selected${total ? ` · ₹${total}` : ""}` : ""})</small></div>
       {items.length > 6 && <input className="list-search" placeholder={`Search ${label.toLowerCase()}`} value={query} onChange={e => setQuery(e.target.value)} />}
     </div>
     {items.length === 0 && <p className="delivery-reason">No {label.toLowerCase()} in the Healjour catalog yet. Add them in Test Catalog.</p>}
@@ -428,17 +442,78 @@ function CatalogChecklist({ label, items, selected, onChange, detail }: {
       {shown.map(i => {
         const on = selected.includes(i.code);
         const extra = detail?.(i);
-        return <label key={i.code} className={`catalog-check-row${on ? " is-on" : ""}`}>
-          <input type="checkbox" checked={on} onChange={() => toggle(i.code)} />
-          <span className="catalog-check-main">
-            <b>{i.name}</b>
-            <small><code>{i.code}</code>{extra ? ` · ${extra}` : ""}</small>
-          </span>
-          <span className={`catalog-check-tag ${i.mapped ? "mapped" : "unmapped"}`}>{i.mapped ? "Flabs ID" : "by name"}</span>
-          <span className="catalog-check-price">{i.price ? `₹${i.price}` : "—"}</span>
-        </label>;
+        return <div key={i.code} className={`catalog-check-item${on ? " is-on" : ""}`}>
+          <div className="catalog-check-row">
+            <label className="catalog-check-pick">
+              <input type="checkbox" checked={on} onChange={() => toggle(i.code)} />
+              <span className="catalog-check-main">
+                <b>{i.name}</b>
+                <small><code>{i.code}</code>{i.mapped && i.flabsName ? ` → Flabs: ${i.flabsName}` : ""}{extra ? ` · ${extra}` : ""}</small>
+              </span>
+            </label>
+            <span className={`catalog-check-tag ${i.mapped ? "mapped" : "unmapped"}`}>{i.mapped ? "Mapped" : "Not mapped"}</span>
+            <span className="catalog-check-price">{i.price ? `₹${i.price}` : "—"}</span>
+            <Button variant="outline" size="sm" onClick={() => setEditing(editing === i.code ? null : i.code)}>{editing === i.code ? "Close" : i.mapped ? "Change" : "Map"}</Button>
+          </div>
+          {editing === i.code && <MapEditor kind={kind} connectionId={connectionId} item={i} flabsList={flabsList}
+            onDone={() => { setEditing(null); onMapped(); }} />}
+        </div>;
       })}
       {q && shown.length === 0 && <p className="delivery-reason">No {label.toLowerCase()} match "{query}".</p>}
+    </div>
+  </div>;
+}
+
+function MapEditor({ kind, connectionId, item, flabsList, onDone }: {
+  kind: "test" | "package"; connectionId: string; item: MapItem; flabsList: FlabsCatalog | null; onDone: () => void;
+}) {
+  const list = (kind === "test" ? flabsList?.tests : flabsList?.packages) ?? [];
+  const canPick = Boolean(flabsList?.available && list.length);
+  const [flabsId, setFlabsId] = useState(item.flabsId ?? "");
+  const [flabsName, setFlabsName] = useState(item.flabsName ?? "");
+  const [filter, setFilter] = useState(canPick ? item.name.split(/\s+/)[0] ?? "" : "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const f = filter.trim().toLowerCase();
+  const options = canPick ? list.filter(o => !f || o.name.toLowerCase().includes(f) || (o.code ?? "").toLowerCase().includes(f)).slice(0, 50) : [];
+  const url = `/api/flabs/connections/${encodeURIComponent(connectionId)}/mappings/${kind}/${encodeURIComponent(item.code)}`;
+
+  const save = async () => {
+    setBusy(true); setError("");
+    try {
+      const res = await fetch(url, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ flabsId: flabsId.trim(), flabsName: flabsName.trim() || undefined }) });
+      const data = await res.json();
+      if (!res.ok || data.ok === false) throw new Error(data.error || "Could not map.");
+      onDone();
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not map."); } finally { setBusy(false); }
+  };
+  const unmap = async () => {
+    setBusy(true); setError("");
+    try {
+      const res = await fetch(url, { method: "DELETE" });
+      if (!res.ok) throw new Error("Could not remove the mapping.");
+      onDone();
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not remove the mapping."); } finally { setBusy(false); }
+  };
+
+  return <div className="map-editor">
+    {canPick ? <div className="form-grid">
+      <label className="field"><span>Search Flabs {kind}s</span><input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Name or code" /></label>
+      <label className="field"><span>Flabs {kind} *</span>
+        <select value={flabsId} onChange={e => setFlabsId(e.target.value)}>
+          <option value="">Choose</option>
+          {options.map(o => <option key={o._id} value={o._id}>{o.name}{o.code ? ` (${o.code})` : ""}{o.cost ? ` · ₹${o.cost}` : ""}</option>)}
+        </select>
+      </label>
+    </div> : <div className="form-grid">
+      <label className="field"><span>Flabs {kind} ID *</span><input value={flabsId} onChange={e => setFlabsId(e.target.value)} placeholder="ID given by Flabs" /></label>
+      <label className="field"><span>Name in Flabs</span><input value={flabsName} onChange={e => setFlabsName(e.target.value)} placeholder={item.name} /></label>
+    </div>}
+    {!canPick && <small className="muted">Flabs does not list {kind}s for this account, so enter the ID Flabs gave you for "{item.name}".</small>}
+    {error && <div className="access-message error">{error}</div>}
+    <div className="map-editor-actions">
+      <Button variant="default" size="sm" disabled={busy || !flabsId.trim()} onClick={() => void save()}><Save size={13} /> {busy ? "Saving…" : "Save mapping"}</Button>
+      {item.mapped && <Button variant="destructive" size="sm" disabled={busy} onClick={() => void unmap()}><Trash2 size={13} /> Remove mapping</Button>}
     </div>
   </div>;
 }
