@@ -1,7 +1,7 @@
 ﻿import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Copy, RefreshCw, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Copy, Download, RefreshCw, X } from "lucide-react";
 
 type Status = "success" | "duplicate" | "error" | "info";
 type LogType = "booking" | "sync" | "account" | "delivery" | "webhook";
@@ -110,6 +110,8 @@ export default function IntegrationLogs() {
       <div className="heading-actions">
         <label className="mini-check"><input type="checkbox" checked={autoRefresh} onChange={e => setAutoRefresh(e.target.checked)} /><span>Refresh every 10 seconds</span></label>
         <Button variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw size={15} className={loading ? "spin" : ""} /> Refresh</Button>
+        <a className="btn-download" href="/api/logs/export?format=csv" download title="Download the whole log as a CSV file (opens in Excel)"><Download size={15} /> Download CSV</a>
+        <a className="btn-download" href="/api/logs/export?format=json" download title="Download the log as JSON"><Download size={15} /> JSON</a>
       </div>
     </div>
 

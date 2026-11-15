@@ -327,7 +327,23 @@ app.post("/api/core/pipeline/run", async (req, res) => {
   }
   const unknownSinks = parsed.data.sinks.filter(id => !sinkCatalog.some(s => s.id === id));
   if (unknownSinks.length) return res.status(400).json({ error: `Unknown sink(s): ${unknownSinks.join(", ")}.` });
-  res.json(await runPipeline(parsed.data));
+  const result = await runPipeline(parsed.data);
+  // Every Core Layers run is written to the log, so the file can be downloaded from Transactions & Logs.
+  const errors = result.counts.errors, warnings = result.counts.warnings;
+  await logIntegration({
+    type: "delivery",
+    status: result.status === "completed" ? "success" : result.status === "stopped" ? "error" : "info",
+    account: "Core Layers",
+    title: `${result.connector}: ${result.status === "completed" ? "completed" : result.status === "stopped" ? `stopped at ${result.stoppedAtLayer}` : "completed with issues"}`,
+    message: `${errors} error(s), ${warnings} warning(s), ${result.deliveries.length} delivery(ies). Run ${result.runId}.`,
+    integratorID: result.runId,
+    details: [
+      `Connector: ${parsed.data.connectorId}`,
+      `Sinks: ${parsed.data.sinks.join(", ")}`,
+      `Layers: ${result.layers.map(l => `${l.layer}=${l.status}`).join(", ")}`
+    ]
+  });
+  res.json(result);
 });
 
 app.get("/api/core/runs", async (_req, res) => {
@@ -926,6 +942,27 @@ app.get("/api/logs", async (req, res) => {
     summary: { total: logs.length, success: count("success"), duplicate: count("duplicate"), error: count("error"), info: count("info") },
     storage: storageInfo()
   });
+});
+
+// Download the integration log as CSV (opens in Excel) or JSON. Admin only: the normal /api guard applies.
+const csvCell = (value: unknown) => {
+  const text = value === undefined || value === null ? "" : String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+app.get("/api/logs/export", async (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 1000, 5000);
+  const logs = await getStore().listIntegrationLogs(limit);
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
+  if (req.query.format === "json") {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="healjour-logs-${stamp}.json"`);
+    return res.send(JSON.stringify({ exportedAt: new Date().toISOString(), count: logs.length, storage: storageInfo(), logs }, null, 2));
+  }
+  const header = ["time", "type", "status", "account", "title", "message", "integrator_id", "lead_id", "http_status", "details"];
+  const rows = logs.map(l => [l.at, l.type, l.status, l.account, l.title, l.message, l.integratorID ?? "", l.leadId ?? "", l.httpStatus ?? "", (l.details ?? []).join(" | ")].map(csvCell).join(","));
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="healjour-logs-${stamp}.csv"`);
+  res.send("\uFEFF" + [header.join(","), ...rows].join("\r\n"));
 });
 
 // Test mapping: Healjour catalog tests -> this account's Flabs test IDs.
