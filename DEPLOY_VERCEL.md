@@ -41,6 +41,7 @@ Locally, the Settings screen can still create the encryption key and save a publ
    | `FLABS_LABEL` | Optional name shown in the app (default "Flabs lab (auto-connected)") |
    | `FLABS_BASE_URL` | Optional, default `https://v2.flabs.in` |
    | `ANTHROPIC_API_KEY` | Optional: turns on AI in Test Builder (Claude reads free-text test lists and matches tests to Flabs by meaning). Without it the builder uses simple rules. |
+   | `PORTAL_SETUP_KEY` | Recommended on a public deployment: a secret that must be typed on the first-run screen to create the first Healjour admin, so nobody else can claim it. |
 
    With these set, the lab account connects on start and its tests sync with Flabs automatically (every 30 min).
    To make every Healjour booking also create a Flabs pre-booking, open Orders & Bookings → Pre-booking →
@@ -61,3 +62,10 @@ Locally, the Settings screen can still create the encryption key and save a publ
 - MongoDB is required there. Without it, each serverless instance keeps its own memory and data disappears.
 - The Settings screen cannot write files on Vercel. It shows a message to set `FLABS_SECRET_KEY` and `PUBLIC_BASE_URL` in Environment Variables instead.
 - Your own domain: **Project Settings → Domains**, add for example `app.yourwebsite.com`, and create the DNS record Vercel shows. HTTPS is automatic.
+
+## Sign-in and Lab Portal
+
+- The whole app needs a sign-in. On first open (no users yet) it shows **Set up the first admin**: that account is the Healjour admin.
+- Healjour admin: **Labs & Users** adds labs and their users (one-time password shown once), **Lab Cases** sends bookings to a lab and shows every update.
+- Lab users sign in at the same address and see only the Lab Portal with their own lab's cases. Roles: lab admin (cases + team), lab staff (status, results, reports), viewer (read and download).
+- Users, sessions, cases and reports are stored in MongoDB (collections portalUsers, portalSessions, portalLabs, labCases, labCaseReports).

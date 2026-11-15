@@ -64,6 +64,16 @@ export interface Store {
   getPrebookingSettings(connectionId: string): Promise<FlabsPrebookingSettings | null>;
   savePrebookingSettings(settings: FlabsPrebookingSettings): Promise<void>;
 
+  /**
+   * Generic documents for the Lab Portal (users, sessions, cases, reports). Every document has an `id`.
+   * `where` matches fields by equality.
+   */
+  docList<T extends { id: string }>(collection: string, where?: Record<string, unknown>): Promise<T[]>;
+  docGet<T extends { id: string }>(collection: string, id: string): Promise<T | undefined>;
+  docPut<T extends { id: string }>(collection: string, doc: T): Promise<void>;
+  docDelete(collection: string, id: string): Promise<void>;
+  docDeleteWhere(collection: string, where: Record<string, unknown>): Promise<void>;
+
   listFlabsConnections(): Promise<StoredFlabsConnection[]>;
   saveFlabsConnection(connection: StoredFlabsConnection): Promise<void>;
   deleteFlabsConnection(id: string): Promise<void>;
@@ -154,9 +164,32 @@ export const seedCatalogPackages = (): CatalogPackage[] => {
 
 // --- in-memory fallback ----------------------------------------------------
 
+const matches = (doc: Record<string, unknown>, where?: Record<string, unknown>) =>
+  !where || Object.entries(where).every(([k, v]) => doc[k] === v);
+
 class MemoryStore implements Store {
   readonly kind = "memory" as const;
   constructor(readonly detail: string) {}
+
+  private docs = new Map<string, Map<string, unknown>>();
+  private bucket(name: string) {
+    let b = this.docs.get(name);
+    if (!b) { b = new Map(); this.docs.set(name, b); }
+    return b;
+  }
+  async docList<T extends { id: string }>(collection: string, where?: Record<string, unknown>) {
+    return [...this.bucket(collection).values()].filter(d => matches(d as Record<string, unknown>, where)).map(d => structuredClone(d) as T);
+  }
+  async docGet<T extends { id: string }>(collection: string, id: string) {
+    const d = this.bucket(collection).get(id);
+    return d ? (structuredClone(d) as T) : undefined;
+  }
+  async docPut<T extends { id: string }>(collection: string, doc: T) { this.bucket(collection).set(doc.id, structuredClone(doc)); }
+  async docDelete(collection: string, id: string) { this.bucket(collection).delete(id); }
+  async docDeleteWhere(collection: string, where: Record<string, unknown>) {
+    const b = this.bucket(collection);
+    for (const [id, d] of b) if (matches(d as Record<string, unknown>, where)) b.delete(id);
+  }
 
   private patients = new Map<string, MasterPatient>(seedPatients().map(p => [p.healjourId, p]));
   private audit: AuditEvent[] = [];
@@ -271,7 +304,7 @@ class MongoStore implements Store {
   private flabsConnections: Collection<WithId<StoredFlabsConnection>>;
   private integrationLogs: Collection<WithId<IntegrationLog>>;
 
-  constructor(private client: MongoClient, db: Db, readonly detail: string) {
+  constructor(private client: MongoClient, private db: Db, readonly detail: string) {
     this.flabsMappings = db.collection("flabsMappings");
     this.flabsConnections = db.collection("flabsConnections");
     this.integrationLogs = db.collection("integrationLogs");
@@ -448,6 +481,19 @@ class MongoStore implements Store {
     await this.flabsConnections.deleteOne({ _id: id });
     await this.flabsMappings.deleteMany({ connectionId: id });
   }
+
+  async docList<T extends { id: string }>(collection: string, where?: Record<string, unknown>) {
+    return (await this.db.collection(collection).find(where ?? {}).toArray()).map(d => strip<T>(d as never)!);
+  }
+  async docGet<T extends { id: string }>(collection: string, id: string) {
+    const d = await this.db.collection<{ _id: string }>(collection).findOne({ _id: id });
+    return d ? strip<T>(d as never) : undefined;
+  }
+  async docPut<T extends { id: string }>(collection: string, doc: T) {
+    await this.db.collection<{ _id: string }>(collection).replaceOne({ _id: doc.id }, withId(doc.id, doc) as never, { upsert: true });
+  }
+  async docDelete(collection: string, id: string) { await this.db.collection<{ _id: string }>(collection).deleteOne({ _id: id }); }
+  async docDeleteWhere(collection: string, where: Record<string, unknown>) { await this.db.collection(collection).deleteMany(where); }
 
   async close() { await this.client.close(); }
 }

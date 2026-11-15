@@ -21,6 +21,8 @@ import { bookingSchema, sendBooking, FlabsError } from "./core/flabs/booking.js"
 import { checkAgainstSettings, emptyPrebookingSettings, preBookingSchema, prebookingSettingsSchema, sendPreBooking } from "./core/flabs/prebooking.js";
 import { listFolders, receiveResults, sendOrders, simulateLab } from "./core/studio-runner.js";
 import { aiStatus, draftTests, suggestMatches } from "./core/test-builder.js";
+import { registerPortalRoutes } from "./portal-routes.js";
+import { can, currentUser } from "./core/portal/auth.js";
 import { recordAudit } from "./core/identity.js";
 import { logIntegration } from "./core/logs.js";
 import { generateEncryptionKey, loadSettingsFile, setPublicBaseUrl, settingsStatus } from "./core/settings.js";
@@ -32,7 +34,24 @@ const storageInfo = () => {
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: "1mb" }));
+// 5 MB: lab reports are uploaded as base64 JSON (files up to 3 MB).
+app.use(express.json({ limit: "5mb" }));
+
+// Sign-in and the Lab Portal check their own permissions. Everything else under /api is for Healjour admins only.
+const OPEN_API = ["/api/health", "/api/auth/", "/api/portal/", "/api/webhooks/"];
+app.use(async (req, res, next) => {
+  if (!req.path.startsWith("/api/") || OPEN_API.some(p => req.path === p || req.path.startsWith(p))) return next();
+  try {
+    const user = await currentUser(req);
+    if (!user) return res.status(401).json({ error: "Please sign in." });
+    if (!can(user.role, "admin:all")) return res.status(403).json({ error: "This area is for Healjour admins." });
+    req.portalUser = user;
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+registerPortalRoutes(app);
 
 const configSchema = z.object({
   name: z.string().trim().min(3).max(100),

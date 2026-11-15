@@ -1,7 +1,7 @@
 ﻿import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { Wand2,
+import { Wand2, Building2, ClipboardList, LogOut,
   Activity, ArrowDownUp, ArrowLeft, ArrowRight, Bell, Check, CheckCircle2,
   ChevronDown, CircleHelp, Clock3, Code2, Database, FileCheck2, FileSpreadsheet,
   FlaskConical, Gauge, GitCompareArrows, LayoutDashboard, LockKeyhole, Plug,
@@ -10,6 +10,8 @@ import { Wand2,
 import CoreLayers from "./CoreLayers";
 import TestCatalog from "./TestCatalog";
 import TestBuilder from "./TestBuilder";
+import { AdminLabCases, AdminLabsUsers } from "./portal/AdminPortal";
+import type { PortalUser } from "./portal/api";
 import { OrdersPage } from "./Calendar";
 import IntegrationLogs from "./IntegrationLogs";
 import { OverviewPage, OrganizationsPage, IntegrationsPage } from "./PlatformPages";
@@ -131,7 +133,9 @@ function PartnerAccess() {
   </div>;
 }
 
-function App() {
+type AppProps = { user: PortalUser; onLogout: () => void; onChangePassword: () => void };
+
+function App({ user, onLogout, onChangePassword }: AppProps) {
   const [activeNav, setActiveNav] = useState("Integration Studio");
   const [step, setStep] = useState<Step>(0);
   const [name, setName] = useState("Noida Lab — CSV Connector");
@@ -160,6 +164,8 @@ function App() {
     { label: "Test Catalog", icon: FileSpreadsheet },
     { label: "Test Builder", icon: Wand2 },
     { label: "Orders & Bookings", icon: FileCheck2 },
+    { label: "Lab Cases", icon: ClipboardList },
+    { label: "Labs & Users", icon: Building2 },
     { label: "Transactions & Logs", icon: Activity },
     { label: "API & Webhooks", icon: Code2 },
     { label: "Partner Access", icon: KeyRound },
@@ -289,7 +295,9 @@ function App() {
         </SidebarContent>
         <SidebarFooter>
           <div className="secure-chip"><ShieldCheck size={16}/><span><b>Secure workspace</b><small>Demo environment</small></span></div>
-          <div className="user-profile"><div className="user-avatar">IE</div><div><b>Integration Engineer</b><small>Workspace user</small></div><ChevronDown size={15}/></div>
+          <div className="user-profile"><div className="user-avatar">{user.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase()}</div><div><b>{user.name}</b><small>Healjour admin</small></div>
+            <Button variant="ghost" className="h-auto icon-button" aria-label="Change password" title="Change password" onClick={onChangePassword}><KeyRound size={15}/></Button>
+            <Button variant="ghost" className="h-auto icon-button" aria-label="Sign out" title="Sign out" onClick={onLogout}><LogOut size={15}/></Button></div>
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>
@@ -300,7 +308,7 @@ function App() {
           <div className="top-actions"><div className="env-pill"><span/> SANDBOX</div><Button variant="ghost" className="h-auto icon-button" aria-label="Help"><CircleHelp size={19}/></Button><Button variant="ghost" className="h-auto icon-button" aria-label="Notifications"><Bell size={19}/></Button><div className="top-avatar">IE</div></div>
         </header>
 
-        {activeNav === "Overview" ? <OverviewPage /> : activeNav === "Monitoring & SLA" ? <MonitoringPage /> : activeNav === "API & Webhooks" ? <ApiPage /> : activeNav === "Settings" ? <SettingsPage /> : activeNav === "Connector Marketplace" ? <MarketplacePage /> : activeNav === "Organizations" ? <OrganizationsPage /> : activeNav === "Integrations" ? <IntegrationsPage /> : activeNav === "Core Layers" ? <CoreLayers /> : activeNav === "Test Catalog" ? <TestCatalog /> : activeNav === "Test Builder" ? <TestBuilder /> : activeNav === "Orders & Bookings" ? <OrdersPage /> : activeNav === "Transactions & Logs" ? <IntegrationLogs /> : activeNav === "Partner Access" ? <PartnerAccess /> : isWizard ? <div className="content">
+        {activeNav === "Overview" ? <OverviewPage /> : activeNav === "Monitoring & SLA" ? <MonitoringPage /> : activeNav === "API & Webhooks" ? <ApiPage /> : activeNav === "Settings" ? <SettingsPage /> : activeNav === "Connector Marketplace" ? <MarketplacePage /> : activeNav === "Organizations" ? <OrganizationsPage /> : activeNav === "Integrations" ? <IntegrationsPage /> : activeNav === "Core Layers" ? <CoreLayers /> : activeNav === "Test Catalog" ? <TestCatalog /> : activeNav === "Test Builder" ? <TestBuilder /> : activeNav === "Lab Cases" ? <AdminLabCases /> : activeNav === "Labs & Users" ? <AdminLabsUsers me={user} /> : activeNav === "Orders & Bookings" ? <OrdersPage /> : activeNav === "Transactions & Logs" ? <IntegrationLogs /> : activeNav === "Partner Access" ? <PartnerAccess /> : isWizard ? <div className="content">
           <div className="page-heading">
             <div><div className="eyebrow">INTEGRATION CONFIGURATION</div><h1>Create integration</h1><p>Set up how Healjour and a lab exchange CSV files, one simple step at a time.</p></div>
             <div className="heading-actions"><Button variant="outline" onClick={() => {setStep(0); setNotice("Wizard reset to step 1.");}}> <RefreshCw size={16}/> Reset wizard</Button><Button variant="default" onClick={saveDraft}><Save size={16}/> Save draft</Button></div>
