@@ -316,7 +316,6 @@ export default function FlabsBookingForm() {
 /** Case-insensitive match on name or code. Empty query shows everything. */
 function filterByQuery<T extends { name: string; code: string }>(items: T[], query: string): T[] {
   const q = query.trim().toLowerCase();
-  const exact = items.some(i => i.code.toLowerCase() === q || i.name.toLowerCase() === q);
   if (!q) return items;
   return items.filter(i => i.name.toLowerCase().includes(q) || i.code.toLowerCase().includes(q));
 }
@@ -379,6 +378,7 @@ export function CatalogPicker({ label, placeholder, items, selected, onChange, d
     void fetch(`/api/flabs/connections/${encodeURIComponent(connectionId)}/flabs-catalog`).then(r => r.json()).then(setFlabsList).catch(() => undefined);
   }, [connectionId]);
   const q = query.trim().toLowerCase();
+  const exact = items.some(i => i.code.toLowerCase() === q || i.name.toLowerCase() === q);
   const matches = q
     ? items.filter(i => !selected.includes(i.code) && (i.name.toLowerCase().includes(q) || i.code.toLowerCase().includes(q))).slice(0, 8)
     : [];
