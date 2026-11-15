@@ -139,7 +139,10 @@ export function registerPortalRoutes(app: express.Express) {
   });
 
   app.post("/api/auth/login", async (req, res) => {
-    const parsed = z.object({ email: z.string().trim().toLowerCase().email(), password: z.string().min(1).max(200) }).safeParse(req.body);
+    const parsed = z.object({
+      email: z.string().trim().toLowerCase().email(), password: z.string().min(1).max(200),
+      area: z.enum(["admin", "lab"]).optional() // which sign-in page was used
+    }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Enter your email and password." });
     const key = `${parsed.data.email}|${req.ip}`;
     if (loginBlocked(key)) return res.status(429).json({ error: "Too many wrong attempts. Try again in 15 minutes." });
@@ -151,6 +154,9 @@ export function registerPortalRoutes(app: express.Express) {
       return res.status(401).json({ error: "Email or password is not correct." });
     }
     if (!user.active) return res.status(403).json({ error: "This account is disabled. Ask your admin." });
+    // Admins sign in at /admin, labs at the main address. Checked after the password, so it reveals nothing to a guesser.
+    if (parsed.data.area === "admin" && user.role !== "healjour_admin") return res.status(403).json({ error: "This is the Healjour admin sign-in. Lab users sign in on the main Lab Portal page." });
+    if (parsed.data.area === "lab" && user.role === "healjour_admin") return res.status(403).json({ error: "Healjour admins sign in at /admin." });
     if (user.labId) {
       const lab = await getStore().docGet<PortalLab>(LABS, user.labId);
       if (!lab?.active) return res.status(403).json({ error: "This lab's access is paused. Contact Healjour." });

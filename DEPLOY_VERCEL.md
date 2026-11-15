@@ -65,7 +65,7 @@ Locally, the Settings screen can still create the encryption key and save a publ
 
 ## Sign-in and Lab Portal
 
-- The whole app needs a sign-in. On first open (no users yet) it shows **Set up the first admin**: that account is the Healjour admin.
+- Two addresses: `/admin` is the Healjour admin sign-in and dashboard (first-run **Set up the first admin** appears only here); `/` is the Lab Portal sign-in for partner labs. Each page accepts only its own kind of account.
 - Healjour admin: **Labs & Users** adds labs and their users (one-time password shown once), **Lab Cases** sends bookings to a lab and shows every update.
 - Lab users sign in at the same address and see only the Lab Portal with their own lab's cases. Roles: lab admin (cases + team), lab staff (status, results, reports), viewer (read and download).
 - Users, sessions, cases and reports are stored in MongoDB (collections portalUsers, portalSessions, portalLabs, labCases, labCaseReports).
