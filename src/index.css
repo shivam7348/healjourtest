@@ -264,6 +264,48 @@
 .case-note-from b { font-size: 11px; color: #2d5cf2; text-transform: uppercase; letter-spacing: .4px; }
 .lab-portal-main .page-heading h1 { font-size: 26px; }
 
+/* Team list: clean card, tabs with counts, search row, status pills */
+.team-card { background: #fff; border: 1px solid #e6ebf3; border-radius: 14px; padding: 20px; display: grid; gap: 14px; box-shadow: 0 1px 2px #0a0a0a08; }
+.team-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.team-head h2 { margin: 0; font-size: 18px; color: #0f172a; }
+.team-head p { margin: 4px 0 0; font-size: 13px; color: #64748b; }
+.team-tabs { display: flex; gap: 22px; border-bottom: 1px solid #e6ebf3; overflow-x: auto; }
+.team-tabs button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 0 12px; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; color: #64748b; font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.team-tabs button.on { color: #2563eb; border-bottom-color: #2563eb; font-weight: 600; }
+.team-count { display: inline-grid; place-items: center; min-width: 22px; height: 20px; padding: 0 6px; border-radius: 999px; background: #eef2f7; color: #475569; font-size: 11.5px; font-weight: 600; }
+.team-tabs button.on .team-count { background: #2563eb; color: #fff; }
+.team-toolbar { display: flex; gap: 10px; flex-wrap: wrap; }
+.team-search { flex: 1; min-width: 220px; display: flex; align-items: center; gap: 8px; padding: 0 12px; height: 38px; border: 1px solid #dbe3ee; border-radius: 9px; color: #94a3b8; background: #fff; }
+.team-search input { flex: 1; border: 0; outline: 0; font: inherit; font-size: 14px; color: #0f172a; background: transparent; }
+.team-toolbar select { height: 38px; padding: 0 30px 0 12px; border: 1px solid #dbe3ee; border-radius: 9px; background: #fff; font: inherit; font-size: 14px; color: #334155; }
+.team-card .role-guide { margin: 0; }
+.team-form { padding: 14px; border: 1px dashed #c7d2e3; border-radius: 10px; background: #f8fafc; }
+.team-table-wrap { overflow-x: auto; border: 1px solid #e6ebf3; border-radius: 10px; }
+.team-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; }
+.team-table thead th { position: sticky; top: 0; background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 600; text-align: left; padding: 11px 14px; border-bottom: 1px solid #e6ebf3; white-space: nowrap; }
+.team-table tbody td { padding: 12px 14px; border-bottom: 1px solid #eef2f7; vertical-align: middle; color: #334155; }
+.team-table tbody tr:last-child td { border-bottom: 0; }
+.team-table tbody tr:hover td { background: #fafcff; }
+.team-person { display: inline-flex; align-items: center; gap: 10px; }
+.team-person b { font-weight: 600; color: #0f172a; }
+.team-person small { color: #94a3b8; }
+.team-avatar { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #dbeafe; color: #1d4ed8; flex-shrink: 0; }
+.team-avatar.disabled { background: #f1f5f9; color: #94a3b8; }
+.team-avatar.invited { background: #fef3c7; color: #b45309; }
+.team-email { color: #64748b; }
+.team-role { color: #334155; }
+.team-role-select { height: 32px; padding: 0 26px 0 10px; border: 1px solid #dbe3ee; border-radius: 8px; background: #fff; font: inherit; font-size: 13px; color: #334155; }
+.team-status { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.team-status i { width: 7px; height: 7px; border-radius: 999px; background: currentColor; }
+.team-status.active { background: #dcfce7; color: #15803d; }
+.team-status.invited { background: #fef3c7; color: #b45309; }
+.team-status.disabled { background: #f1f5f9; color: #64748b; }
+.team-muted { color: #64748b; font-size: 13px; white-space: nowrap; }
+.team-actions-th { text-align: right; }
+.team-actions-td { text-align: right; white-space: nowrap; }
+.team-actions-td [data-slot="button"] { margin-left: 6px; }
+.team-empty { text-align: center; color: #94a3b8; padding: 28px !important; }
+
 /* Team, labs, send-to-lab */
 .role-guide { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-bottom: 12px; }
 .role-guide div { padding: 9px 11px; border: 1px solid #e3e9f2; border-radius: 9px; background: #f8faff; }
