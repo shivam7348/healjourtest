@@ -86,6 +86,24 @@
 }
 .flabs-account .flabs-tests .plain-hint { margin: 0; }
 
+/* Test Builder */
+.builder-ai { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.builder-ai.on { background: #eef2ff; color: #2d5cf2; border: 1px solid #c7d2fe; }
+.builder-ai.off { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+.builder-text { width: 100%; min-height: 130px; padding: 10px 12px; border: 1px solid #dbe4ff; border-radius: 8px; font: inherit; font-size: 13.5px; line-height: 1.5; resize: vertical; }
+.builder-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+.builder-table input { width: 100%; min-width: 70px; padding: 6px 8px; border: 1px solid #dbe4ff; border-radius: 6px; font: inherit; font-size: 13px; background: #fff; }
+.builder-table tr.has-problem input:first-child { border-color: #fca5a5; }
+.builder-problem { display: block; margin-top: 3px; font-size: 11px; color: #b91c1c; }
+.builder-exists { display: block; margin-top: 3px; font-size: 11px; color: #b45309; }
+.builder-new { display: block; margin-top: 3px; font-size: 11px; color: #15803d; }
+.builder-reason { font-size: 12.5px; color: #475569; max-width: 360px; }
+.builder-confidence { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+.builder-confidence.high { background: #e7f9ee; color: #15803d; }
+.builder-confidence.medium { background: #eef2ff; color: #2d5cf2; }
+.builder-confidence.low { background: #fff4e5; color: #b45309; }
+.builder-confidence.none { background: #f1f5f9; color: #64748b; }
+
 /* Pre-booking: tests and packages as a ticked list */
 .catalog-checklist { margin: 4px 0 14px; }
 .catalog-checklist-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }

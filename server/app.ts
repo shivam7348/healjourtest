@@ -20,6 +20,7 @@ import { canPersistSecret } from "./core/flabs/vault.js";
 import { bookingSchema, sendBooking, FlabsError } from "./core/flabs/booking.js";
 import { checkAgainstSettings, emptyPrebookingSettings, preBookingSchema, prebookingSettingsSchema, sendPreBooking } from "./core/flabs/prebooking.js";
 import { listFolders, receiveResults, sendOrders, simulateLab } from "./core/studio-runner.js";
+import { aiStatus, draftTests, suggestMatches } from "./core/test-builder.js";
 import { recordAudit } from "./core/identity.js";
 import { logIntegration } from "./core/logs.js";
 import { generateEncryptionKey, loadSettingsFile, setPublicBaseUrl, settingsStatus } from "./core/settings.js";
@@ -503,6 +504,72 @@ app.post("/api/catalog/packages", async (req, res) => {
   if (unknown.length) return res.status(400).json({ error: `Unknown test code(s) in package: ${unknown.join(", ")}.` });
   await store.saveCatalogPackage({ ...parsed.data, updatedAt: new Date().toISOString() });
   res.json({ message: `Package ${parsed.data.code} saved.` });
+});
+
+// Test Builder: onboard many tests at once, then match them to a lab's Flabs tests (Claude when configured).
+app.get("/api/builder/status", (_req, res) => res.json(aiStatus()));
+
+app.post("/api/builder/draft", async (req, res) => {
+  const parsed = z.object({ text: z.string().trim().min(2, "Write or paste at least one test.").max(20_000) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Write or paste the tests." });
+  const existing = (await getStore().listCatalogTests()).map(t => ({ code: t.code, name: t.name }));
+  res.json(await draftTests(parsed.data.text, existing));
+});
+
+// Many tests in one go, plus an optional package made of them. Each row is checked on its own.
+app.post("/api/catalog/tests/bulk", async (req, res) => {
+  const parsed = z.object({
+    tests: z.array(z.unknown()).min(1, "Add at least one test.").max(500),
+    package: z.unknown().optional()
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "No tests sent." });
+  const store = getStore();
+  const existing = new Set((await store.listCatalogTests()).map(t => t.code));
+  const seen = new Set<string>();
+  const created: string[] = [], updated: string[] = [], errors: Array<{ row: number; code?: string; error: string }> = [];
+  for (const [i, raw] of parsed.data.tests.entries()) {
+    const row = catalogTestSchema.safeParse(raw);
+    if (!row.success) { errors.push({ row: i + 1, code: (raw as { code?: string })?.code, error: row.error.issues.map(x => `${x.path.join(".")}: ${x.message}`).join(" ") }); continue; }
+    if (seen.has(row.data.code)) { errors.push({ row: i + 1, code: row.data.code, error: "Code used twice in this list." }); continue; }
+    seen.add(row.data.code);
+    await store.saveCatalogTest({ ...row.data, updatedAt: new Date().toISOString() });
+    (existing.has(row.data.code) ? updated : created).push(row.data.code);
+  }
+  let packageMessage: string | undefined;
+  if (parsed.data.package) {
+    const pkg = catalogPackageSchema.safeParse(parsed.data.package);
+    const known = new Set((await store.listCatalogTests()).map(t => t.code));
+    if (!pkg.success) errors.push({ row: 0, error: `Package: ${pkg.error.issues.map(x => `${x.path.join(".")}: ${x.message}`).join(" ")}` });
+    else if (pkg.data.testCodes.some(c => !known.has(c))) errors.push({ row: 0, code: pkg.data.code, error: "Package has tests that were not saved." });
+    else { await store.saveCatalogPackage({ ...pkg.data, updatedAt: new Date().toISOString() }); packageMessage = `Package ${pkg.data.code} saved.`; }
+  }
+  await logIntegration({
+    type: "sync", status: errors.length ? "info" : "success", account: "Test Builder", title: "Tests onboarded",
+    message: `${created.length} created, ${updated.length} updated, ${errors.length} skipped.${packageMessage ? ` ${packageMessage}` : ""}`
+  });
+  res.json({ ok: true, created, updated, errors, packageMessage });
+});
+
+// Suggest a Flabs test for each Healjour test of this account that is not mapped yet. Nothing is saved here.
+app.post("/api/flabs/connections/:id/ai-match", async (req, res) => {
+  const config = getFlabsConfig(req.params.id);
+  if (!config || !config.branchId) return res.status(404).json({ error: "Connection not found or has no branch." });
+  const parsed = z.object({ codes: z.array(z.string()).max(500).optional(), includeMapped: z.boolean().optional() }).safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Invalid request." });
+  let flabs;
+  try {
+    flabs = await listTests(config, config.branchId);
+  } catch (error) {
+    return res.json({ available: false, suggestions: [], error: error instanceof Error ? error.message : "Flabs did not return its tests." });
+  }
+  const store = getStore();
+  const [tests, mappings] = await Promise.all([store.listCatalogTests(), store.listFlabsMappings(config.id)]);
+  const mapped = new Set(mappings.filter(m => m.kind === "test").map(m => m.healjourCode));
+  const wanted = tests.filter(t => t.active
+    && (!parsed.data.codes?.length || parsed.data.codes.includes(t.code))
+    && (parsed.data.includeMapped || !mapped.has(t.code)));
+  const result = await suggestMatches(wanted.map(t => ({ code: t.code, name: t.name })), flabs);
+  res.json({ available: true, flabsCount: flabs.length, ...result });
 });
 
 // Flabs CRM accounts. Several can be connected at once: a lab, a corporate, a referral account.

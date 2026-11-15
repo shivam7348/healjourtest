@@ -40,6 +40,7 @@ Locally, the Settings screen can still create the encryption key and save a publ
    | `FLABS_BRANCH_ID` | The Flabs lab ID (labID) for that account |
    | `FLABS_LABEL` | Optional name shown in the app (default "Flabs lab (auto-connected)") |
    | `FLABS_BASE_URL` | Optional, default `https://v2.flabs.in` |
+   | `ANTHROPIC_API_KEY` | Optional: turns on AI in Test Builder (Claude reads free-text test lists and matches tests to Flabs by meaning). Without it the builder uses simple rules. |
 
    With these set, the lab account connects on start and its tests sync with Flabs automatically (every 30 min).
    To make every Healjour booking also create a Flabs pre-booking, open Orders & Bookings → Pre-booking →
