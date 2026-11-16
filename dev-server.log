@@ -1293,3 +1293,603 @@ Storage: MongoDB at mongodb+srv://shivamkumar_db_user:***@suflam.lj2tn3k.mongodb
  GET /api/portal/cases? 304 in 278ms
  GET /api/calendar 304 in 198ms
  GET /api/portal/notifications 304 in 386ms
+ GET /api/calendar 304 in 189ms
+ GET /api/portal/notifications 304 in 406ms
+ GET /api/portal/notifications 304 in 303ms
+ GET /api/portal/cases? 304 in 312ms
+ GET /api/logs?limit=300 304 in 370ms
+ GET /api/portal/notifications 304 in 449ms
+ GET /api/portal/cases? 304 in 233ms
+ GET /api/calendar 304 in 187ms
+ GET /api/portal/notifications 304 in 453ms
+ GET /api/calendar 304 in 216ms
+ GET /api/portal/notifications 304 in 452ms
+ GET /api/portal/notifications 304 in 281ms
+ GET /api/portal/cases? 304 in 347ms
+ GET /api/logs?limit=300 304 in 342ms
+ GET /api/portal/notifications 304 in 420ms
+ GET /api/portal/cases? 304 in 261ms
+ GET /api/calendar 304 in 191ms
+ GET /api/portal/notifications 304 in 441ms
+ GET /api/calendar 304 in 200ms
+ GET /api/portal/notifications 304 in 444ms
+ GET /api/portal/cases? 304 in 340ms
+ GET /api/portal/notifications 304 in 367ms
+ GET /api/logs?limit=300 304 in 299ms
+ GET /api/portal/cases? 304 in 300ms
+ GET /api/portal/notifications 304 in 354ms
+ GET /api/calendar 304 in 202ms
+ GET /api/portal/notifications 304 in 447ms
+ GET /api/calendar 304 in 205ms
+ GET /api/portal/notifications 304 in 515ms
+ GET /api/portal/notifications 304 in 294ms
+ GET /api/portal/cases? 304 in 335ms
+ GET /api/logs?limit=300 304 in 350ms
+ GET /api/portal/notifications 304 in 418ms
+ GET /api/portal/cases? 304 in 259ms
+ GET /api/calendar 304 in 208ms
+ GET /api/portal/notifications 304 in 470ms
+ GET /api/calendar 304 in 200ms
+ GET /api/portal/notifications 304 in 396ms
+ GET /api/portal/cases? 304 in 328ms
+ GET /api/portal/notifications 304 in 333ms
+ GET /api/logs?limit=300 304 in 352ms
+ GET /api/portal/notifications 304 in 444ms
+ GET /api/portal/cases? 304 in 252ms
+ GET /api/calendar 304 in 201ms
+ GET /api/portal/notifications 304 in 474ms
+ GET /api/calendar 304 in 207ms
+ GET /api/portal/notifications 304 in 461ms
+ GET /api/portal/cases? 304 in 354ms
+ GET /api/portal/notifications 304 in 336ms
+ GET /api/logs?limit=300 304 in 381ms
+ GET /api/portal/notifications 304 in 473ms
+ GET /api/portal/cases? 304 in 238ms
+ GET /api/calendar 304 in 205ms
+ GET /api/portal/notifications 304 in 399ms
+ GET /api/calendar 304 in 177ms
+ GET /api/portal/notifications 304 in 401ms
+ GET /api/portal/notifications 304 in 312ms
+ GET /api/portal/cases? 304 in 325ms
+ GET /api/logs?limit=300 304 in 382ms
+ GET /api/portal/notifications 304 in 454ms
+ GET /api/portal/cases? 304 in 237ms
+ GET /api/calendar 304 in 218ms
+ GET /api/portal/notifications 304 in 409ms
+ GET /api/calendar 304 in 199ms
+ GET /api/portal/notifications 304 in 539ms
+ GET /api/portal/notifications 304 in 289ms
+ GET /api/portal/cases? 304 in 344ms
+ GET /api/logs?limit=300 304 in 339ms
+ GET /api/portal/notifications 304 in 458ms
+ GET /api/portal/cases? 304 in 254ms
+ GET /api/calendar 304 in 185ms
+ GET /api/portal/notifications 304 in 459ms
+ GET /api/calendar 304 in 213ms
+ GET /api/portal/notifications 304 in 459ms
+ GET /api/portal/cases? 304 in 285ms
+ GET /api/portal/notifications 304 in 341ms
+ GET /api/logs?limit=300 304 in 345ms
+ GET /api/portal/notifications 304 in 416ms
+ GET /api/portal/cases? 304 in 236ms
+ GET /api/calendar 304 in 179ms
+ GET /api/portal/notifications 304 in 389ms
+ GET /api/calendar 304 in 186ms
+ GET /api/portal/notifications 304 in 385ms
+ GET /api/portal/notifications 304 in 298ms
+ GET /api/portal/cases? 304 in 284ms
+ GET /api/logs?limit=300 304 in 346ms
+ GET /api/portal/notifications 304 in 449ms
+ GET /api/portal/cases? 304 in 243ms
+ GET /api/calendar 304 in 190ms
+ GET /api/portal/notifications 304 in 472ms
+ GET /api/calendar 304 in 199ms
+ GET /api/portal/notifications 304 in 487ms
+ GET /api/portal/cases? 304 in 286ms
+ GET /api/portal/notifications 304 in 357ms
+ GET /api/logs?limit=300 304 in 366ms
+ GET /api/portal/notifications 304 in 412ms
+ GET /api/portal/cases? 304 in 268ms
+ GET /api/calendar 304 in 176ms
+ GET /api/portal/notifications 304 in 382ms
+ GET /api/calendar 304 in 177ms
+ GET /api/portal/notifications 304 in 509ms
+ GET /api/portal/notifications 304 in 301ms
+ GET /api/portal/cases? 304 in 312ms
+ GET /api/logs?limit=300 304 in 371ms
+ GET /api/portal/notifications 304 in 435ms
+ GET /api/portal/cases? 304 in 270ms
+ GET /api/calendar 304 in 281ms
+ GET /api/portal/notifications 304 in 416ms
+ GET /api/portal/cases? 200 in 2737ms
+ GET /api/portal/notifications 200 in 2740ms
+ GET /api/logs?limit=300 200 in 2742ms
+ GET /api/portal/notifications 200 in 2740ms
+MongoServerSelectionError: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+    at Topology.selectServer (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\sdam\topology.js:350:38)
+    at runNextTicks (node:internal/process/task_queues:64:5)
+    at listOnTimeout (node:internal/timers:567:9)
+    at process.processTimers (node:internal/timers:541:7)
+    at async executeOperationWithRetries (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async FindCursor._initialize (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\find_cursor.js:53:26)
+    at async FindCursor.cursorInit (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:566:27)
+    at async FindCursor.fetchBatch (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:600:13)
+    at async FindCursor.next (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:270:17)
+    at async Collection.findOne (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\collection.js:314:24)
+    at async MongoStore.docGet (webpack-internal:///(api)/./server/core/store.ts:773:19)
+    at async currentUser (webpack-internal:///(api)/./server/core/portal/auth.ts:154:21)
+    at async eval (webpack-internal:///(api)/./server/core/portal/auth.ts:170:22) {
+  errorLabelSet: Set(0) {},
+  reason: TopologyDescription {
+    type: 'ReplicaSetNoPrimary',
+    servers: Map(3) {
+      'ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net:27017' => [ServerDescription],
+      'ac-rsakvsu-shard-00-01.lj2tn3k.mongodb.net:27017' => [ServerDescription],
+      'ac-rsakvsu-shard-00-02.lj2tn3k.mongodb.net:27017' => [ServerDescription]
+    },
+    stale: false,
+    compatible: true,
+    heartbeatFrequencyMS: 10000,
+    localThresholdMS: 15,
+    setName: 'atlas-bijdi7-shard-0',
+    maxElectionId: new ObjectId('7fffffff0000000000000184'),
+    maxSetVersion: 390,
+    commonWireVersion: 25,
+    logicalSessionTimeoutMinutes: null
+  },
+  code: undefined,
+  [cause]: MongoNetworkError: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+      at TLSSocket.<anonymous> (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cmap\connect.js:314:44)
+      at Object.onceWrapper (node:events:623:26)
+      at TLSSocket.emit (node:events:508:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+    errorLabelSet: Set(3) { 'SystemOverloadedError', 'RetryableError', 'ResetPool' },
+    beforeHandshake: false,
+    [cause]: Error: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+        at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26) {
+      errno: -3008,
+      code: 'ENOTFOUND',
+      syscall: 'getaddrinfo',
+      hostname: 'ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net'
+    }
+  }
+}
+ ⨯ unhandledRejection: MongoServerSelectionError: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+    at Topology.selectServer (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\sdam\topology.js:350:38)
+    at runNextTicks (node:internal/process/task_queues:64:5)
+    at listOnTimeout (node:internal/timers:567:9)
+    at process.processTimers (node:internal/timers:541:7)
+    at async executeOperationWithRetries (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async FindCursor._initialize (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\find_cursor.js:53:26)
+    at async FindCursor.cursorInit (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:566:27)
+    at async FindCursor.fetchBatch (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:600:13)
+    at async FindCursor.next (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:270:17)
+    at async Collection.findOne (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\collection.js:314:24)
+    at async MongoStore.docGet (webpack-internal:///(api)/./server/core/store.ts:773:19)
+    at async currentUser (webpack-internal:///(api)/./server/core/portal/auth.ts:154:21)
+    at async eval (webpack-internal:///(api)/./server/core/portal/auth.ts:170:22) {
+  errorLabelSet: Set(0) {},
+  reason: TopologyDescription {
+    type: 'ReplicaSetNoPrimary',
+    servers: Map(3) {
+      'ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net:27017' => [ServerDescription],
+      'ac-rsakvsu-shard-00-01.lj2tn3k.mongodb.net:27017' => [ServerDescription],
+      'ac-rsakvsu-shard-00-02.lj2tn3k.mongodb.net:27017' => [ServerDescription]
+    },
+    stale: false,
+    compatible: true,
+    heartbeatFrequencyMS: 10000,
+    localThresholdMS: 15,
+    setName: 'atlas-bijdi7-shard-0',
+    maxElectionId: new ObjectId('7fffffff0000000000000184'),
+    maxSetVersion: 390,
+    commonWireVersion: 25,
+    logicalSessionTimeoutMinutes: null
+  },
+  code: undefined,
+  [cause]: MongoNetworkError: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+      at TLSSocket.<anonymous> (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cmap\connect.js:314:44)
+      at Object.onceWrapper (node:events:623:26)
+      at TLSSocket.emit (node:events:508:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+    errorLabelSet: Set(3) { 'SystemOverloadedError', 'RetryableError', 'ResetPool' },
+    beforeHandshake: false,
+    [cause]: Error: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+        at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26) {
+      errno: -3008,
+      code: 'ENOTFOUND',
+      syscall: 'getaddrinfo',
+      hostname: 'ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net'
+    }
+  }
+}
+ ⨯ unhandledRejection: MongoServerSelectionError: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+    at Topology.selectServer (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\sdam\topology.js:350:38)
+    at runNextTicks (node:internal/process/task_queues:64:5)
+    at listOnTimeout (node:internal/timers:567:9)
+    at process.processTimers (node:internal/timers:541:7)
+    at async executeOperationWithRetries (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async FindCursor._initialize (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\find_cursor.js:53:26)
+    at async FindCursor.cursorInit (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:566:27)
+    at async FindCursor.fetchBatch (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:600:13)
+    at async FindCursor.next (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:270:17)
+    at async Collection.findOne (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\collection.js:314:24)
+    at async MongoStore.docGet (webpack-internal:///(api)/./server/core/store.ts:773:19)
+    at async currentUser (webpack-internal:///(api)/./server/core/portal/auth.ts:154:21)
+    at async eval (webpack-internal:///(api)/./server/core/portal/auth.ts:170:22) {
+  errorLabelSet: Set(0) {},
+  reason: TopologyDescription {
+    type: 'ReplicaSetNoPrimary',
+    servers: Map(3) {
+      'ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net:27017' => [ServerDescription],
+      'ac-rsakvsu-shard-00-01.lj2tn3k.mongodb.net:27017' => [ServerDescription],
+      'ac-rsakvsu-shard-00-02.lj2tn3k.mongodb.net:27017' => [ServerDescription]
+    },
+    stale: false,
+    compatible: true,
+    heartbeatFrequencyMS: 10000,
+    localThresholdMS: 15,
+    setName: 'atlas-bijdi7-shard-0',
+    maxElectionId: new ObjectId('7fffffff0000000000000184'),
+    maxSetVersion: 390,
+    commonWireVersion: 25,
+    logicalSessionTimeoutMinutes: null
+  },
+  code: undefined,
+  [cause]: MongoNetworkError: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+      at TLSSocket.<anonymous> (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cmap\connect.js:314:44)
+      at Object.onceWrapper (node:events:623:26)
+      at TLSSocket.emit (node:events:508:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+    errorLabelSet: Set(3) { 'SystemOverloadedError', 'RetryableError', 'ResetPool' },
+    beforeHandshake: false,
+    [cause]: Error: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+        at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26) {
+      errno: -3008,
+      code: 'ENOTFOUND',
+      syscall: 'getaddrinfo',
+      hostname: 'ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net'
+    }
+  }
+}
+MongoServerSelectionError: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+    at Topology.selectServer (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\sdam\topology.js:350:38)
+    at runNextTicks (node:internal/process/task_queues:64:5)
+    at listOnTimeout (node:internal/timers:567:9)
+    at process.processTimers (node:internal/timers:541:7)
+    at async executeOperationWithRetries (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async FindCursor._initialize (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\find_cursor.js:53:26)
+    at async FindCursor.cursorInit (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:566:27)
+    at async FindCursor.fetchBatch (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:600:13)
+    at async FindCursor.next (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:270:17)
+    at async Collection.findOne (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\collection.js:314:24)
+    at async MongoStore.docGet (webpack-internal:///(api)/./server/core/store.ts:773:19)
+    at async currentUser (webpack-internal:///(api)/./server/core/portal/auth.ts:154:21)
+    at async eval (webpack-internal:///(api)/./server/core/portal/auth.ts:170:22) {
+  errorLabelSet: Set(0) {},
+  reason: TopologyDescription {
+    type: 'ReplicaSetNoPrimary',
+    servers: Map(3) {
+      'ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net:27017' => [ServerDescription],
+      'ac-rsakvsu-shard-00-01.lj2tn3k.mongodb.net:27017' => [ServerDescription],
+      'ac-rsakvsu-shard-00-02.lj2tn3k.mongodb.net:27017' => [ServerDescription]
+    },
+    stale: false,
+    compatible: true,
+    heartbeatFrequencyMS: 10000,
+    localThresholdMS: 15,
+    setName: 'atlas-bijdi7-shard-0',
+    maxElectionId: new ObjectId('7fffffff0000000000000184'),
+    maxSetVersion: 390,
+    commonWireVersion: 25,
+    logicalSessionTimeoutMinutes: null
+  },
+  code: undefined,
+  [cause]: MongoNetworkError: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+      at TLSSocket.<anonymous> (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cmap\connect.js:314:44)
+      at Object.onceWrapper (node:events:623:26)
+      at TLSSocket.emit (node:events:508:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+    errorLabelSet: Set(3) { 'SystemOverloadedError', 'RetryableError', 'ResetPool' },
+    beforeHandshake: false,
+    [cause]: Error: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+        at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26) {
+      errno: -3008,
+      code: 'ENOTFOUND',
+      syscall: 'getaddrinfo',
+      hostname: 'ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net'
+    }
+  }
+}
+ ⨯ unhandledRejection: MongoServerSelectionError: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+    at Topology.selectServer (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\sdam\topology.js:350:38)
+    at runNextTicks (node:internal/process/task_queues:64:5)
+    at listOnTimeout (node:internal/timers:567:9)
+    at process.processTimers (node:internal/timers:541:7)
+    at async executeOperationWithRetries (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async FindCursor._initialize (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\find_cursor.js:53:26)
+    at async FindCursor.cursorInit (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:566:27)
+    at async FindCursor.fetchBatch (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:600:13)
+    at async FindCursor.next (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:270:17)
+    at async Collection.findOne (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\collection.js:314:24)
+    at async MongoStore.docGet (webpack-internal:///(api)/./server/core/store.ts:773:19)
+    at async currentUser (webpack-internal:///(api)/./server/core/portal/auth.ts:154:21)
+    at async eval (webpack-internal:///(api)/./server/core/portal/auth.ts:170:22) {
+  errorLabelSet: Set(0) {},
+  reason: TopologyDescription {
+    type: 'ReplicaSetNoPrimary',
+    servers: Map(3) {
+      'ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net:27017' => [ServerDescription],
+      'ac-rsakvsu-shard-00-01.lj2tn3k.mongodb.net:27017' => [ServerDescription],
+      'ac-rsakvsu-shard-00-02.lj2tn3k.mongodb.net:27017' => [ServerDescription]
+    },
+    stale: false,
+    compatible: true,
+    heartbeatFrequencyMS: 10000,
+    localThresholdMS: 15,
+    setName: 'atlas-bijdi7-shard-0',
+    maxElectionId: new ObjectId('7fffffff0000000000000184'),
+    maxSetVersion: 390,
+    commonWireVersion: 25,
+    logicalSessionTimeoutMinutes: null
+  },
+  code: undefined,
+  [cause]: MongoNetworkError: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+      at TLSSocket.<anonymous> (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cmap\connect.js:314:44)
+      at Object.onceWrapper (node:events:623:26)
+      at TLSSocket.emit (node:events:508:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+    errorLabelSet: Set(3) { 'SystemOverloadedError', 'RetryableError', 'ResetPool' },
+    beforeHandshake: false,
+    [cause]: Error: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+        at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26) {
+      errno: -3008,
+      code: 'ENOTFOUND',
+      syscall: 'getaddrinfo',
+      hostname: 'ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net'
+    }
+  }
+}
+ ⨯ unhandledRejection: MongoServerSelectionError: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+    at Topology.selectServer (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\sdam\topology.js:350:38)
+    at runNextTicks (node:internal/process/task_queues:64:5)
+    at listOnTimeout (node:internal/timers:567:9)
+    at process.processTimers (node:internal/timers:541:7)
+    at async executeOperationWithRetries (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async FindCursor._initialize (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\find_cursor.js:53:26)
+    at async FindCursor.cursorInit (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:566:27)
+    at async FindCursor.fetchBatch (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:600:13)
+    at async FindCursor.next (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:270:17)
+    at async Collection.findOne (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\collection.js:314:24)
+    at async MongoStore.docGet (webpack-internal:///(api)/./server/core/store.ts:773:19)
+    at async currentUser (webpack-internal:///(api)/./server/core/portal/auth.ts:154:21)
+    at async eval (webpack-internal:///(api)/./server/core/portal/auth.ts:170:22) {
+  errorLabelSet: Set(0) {},
+  reason: TopologyDescription {
+    type: 'ReplicaSetNoPrimary',
+    servers: Map(3) {
+      'ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net:27017' => [ServerDescription],
+      'ac-rsakvsu-shard-00-01.lj2tn3k.mongodb.net:27017' => [ServerDescription],
+      'ac-rsakvsu-shard-00-02.lj2tn3k.mongodb.net:27017' => [ServerDescription]
+    },
+    stale: false,
+    compatible: true,
+    heartbeatFrequencyMS: 10000,
+    localThresholdMS: 15,
+    setName: 'atlas-bijdi7-shard-0',
+    maxElectionId: new ObjectId('7fffffff0000000000000184'),
+    maxSetVersion: 390,
+    commonWireVersion: 25,
+    logicalSessionTimeoutMinutes: null
+  },
+  code: undefined,
+  [cause]: MongoNetworkError: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+      at TLSSocket.<anonymous> (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cmap\connect.js:314:44)
+      at Object.onceWrapper (node:events:623:26)
+      at TLSSocket.emit (node:events:508:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+    errorLabelSet: Set(3) { 'SystemOverloadedError', 'RetryableError', 'ResetPool' },
+    beforeHandshake: false,
+    [cause]: Error: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+        at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26) {
+      errno: -3008,
+      code: 'ENOTFOUND',
+      syscall: 'getaddrinfo',
+      hostname: 'ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net'
+    }
+  }
+}
+MongoServerSelectionError: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+    at Topology.selectServer (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\sdam\topology.js:350:38)
+    at runNextTicks (node:internal/process/task_queues:64:5)
+    at process.processTimers (node:internal/timers:538:9)
+    at async executeOperationWithRetries (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async FindCursor._initialize (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\find_cursor.js:53:26)
+    at async FindCursor.cursorInit (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:566:27)
+    at async FindCursor.fetchBatch (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:600:13)
+    at async FindCursor.next (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:270:17)
+    at async Collection.findOne (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\collection.js:314:24)
+    at async MongoStore.docGet (webpack-internal:///(api)/./server/core/store.ts:773:19)
+    at async currentUser (webpack-internal:///(api)/./server/core/portal/auth.ts:154:21)
+    at async eval (webpack-internal:///(api)/./server/core/portal/auth.ts:170:22) {
+  errorLabelSet: Set(0) {},
+  reason: TopologyDescription {
+    type: 'ReplicaSetNoPrimary',
+    servers: Map(3) {
+      'ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net:27017' => [ServerDescription],
+      'ac-rsakvsu-shard-00-01.lj2tn3k.mongodb.net:27017' => [ServerDescription],
+      'ac-rsakvsu-shard-00-02.lj2tn3k.mongodb.net:27017' => [ServerDescription]
+    },
+    stale: false,
+    compatible: true,
+    heartbeatFrequencyMS: 10000,
+    localThresholdMS: 15,
+    setName: 'atlas-bijdi7-shard-0',
+    maxElectionId: new ObjectId('7fffffff0000000000000184'),
+    maxSetVersion: 390,
+    commonWireVersion: 25,
+    logicalSessionTimeoutMinutes: null
+  },
+  code: undefined,
+  [cause]: MongoNetworkError: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+      at TLSSocket.<anonymous> (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cmap\connect.js:314:44)
+      at Object.onceWrapper (node:events:623:26)
+      at TLSSocket.emit (node:events:508:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+    errorLabelSet: Set(3) { 'SystemOverloadedError', 'RetryableError', 'ResetPool' },
+    beforeHandshake: false,
+    [cause]: Error: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+        at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26) {
+      errno: -3008,
+      code: 'ENOTFOUND',
+      syscall: 'getaddrinfo',
+      hostname: 'ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net'
+    }
+  }
+}
+ ⨯ unhandledRejection: MongoServerSelectionError: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+    at Topology.selectServer (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\sdam\topology.js:350:38)
+    at runNextTicks (node:internal/process/task_queues:64:5)
+    at process.processTimers (node:internal/timers:538:9)
+    at async executeOperationWithRetries (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async FindCursor._initialize (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\find_cursor.js:53:26)
+    at async FindCursor.cursorInit (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:566:27)
+    at async FindCursor.fetchBatch (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:600:13)
+    at async FindCursor.next (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:270:17)
+    at async Collection.findOne (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\collection.js:314:24)
+    at async MongoStore.docGet (webpack-internal:///(api)/./server/core/store.ts:773:19)
+    at async currentUser (webpack-internal:///(api)/./server/core/portal/auth.ts:154:21)
+    at async eval (webpack-internal:///(api)/./server/core/portal/auth.ts:170:22) {
+  errorLabelSet: Set(0) {},
+  reason: TopologyDescription {
+    type: 'ReplicaSetNoPrimary',
+    servers: Map(3) {
+      'ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net:27017' => [ServerDescription],
+      'ac-rsakvsu-shard-00-01.lj2tn3k.mongodb.net:27017' => [ServerDescription],
+      'ac-rsakvsu-shard-00-02.lj2tn3k.mongodb.net:27017' => [ServerDescription]
+    },
+    stale: false,
+    compatible: true,
+    heartbeatFrequencyMS: 10000,
+    localThresholdMS: 15,
+    setName: 'atlas-bijdi7-shard-0',
+    maxElectionId: new ObjectId('7fffffff0000000000000184'),
+    maxSetVersion: 390,
+    commonWireVersion: 25,
+    logicalSessionTimeoutMinutes: null
+  },
+  code: undefined,
+  [cause]: MongoNetworkError: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+      at TLSSocket.<anonymous> (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cmap\connect.js:314:44)
+      at Object.onceWrapper (node:events:623:26)
+      at TLSSocket.emit (node:events:508:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+    errorLabelSet: Set(3) { 'SystemOverloadedError', 'RetryableError', 'ResetPool' },
+    beforeHandshake: false,
+    [cause]: Error: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+        at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26) {
+      errno: -3008,
+      code: 'ENOTFOUND',
+      syscall: 'getaddrinfo',
+      hostname: 'ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net'
+    }
+  }
+}
+ ⨯ unhandledRejection: MongoServerSelectionError: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+    at Topology.selectServer (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\sdam\topology.js:350:38)
+    at runNextTicks (node:internal/process/task_queues:64:5)
+    at process.processTimers (node:internal/timers:538:9)
+    at async executeOperationWithRetries (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async FindCursor._initialize (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\find_cursor.js:53:26)
+    at async FindCursor.cursorInit (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:566:27)
+    at async FindCursor.fetchBatch (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:600:13)
+    at async FindCursor.next (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:270:17)
+    at async Collection.findOne (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\collection.js:314:24)
+    at async MongoStore.docGet (webpack-internal:///(api)/./server/core/store.ts:773:19)
+    at async currentUser (webpack-internal:///(api)/./server/core/portal/auth.ts:154:21)
+    at async eval (webpack-internal:///(api)/./server/core/portal/auth.ts:170:22) {
+  errorLabelSet: Set(0) {},
+  reason: TopologyDescription {
+    type: 'ReplicaSetNoPrimary',
+    servers: Map(3) {
+      'ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net:27017' => [ServerDescription],
+      'ac-rsakvsu-shard-00-01.lj2tn3k.mongodb.net:27017' => [ServerDescription],
+      'ac-rsakvsu-shard-00-02.lj2tn3k.mongodb.net:27017' => [ServerDescription]
+    },
+    stale: false,
+    compatible: true,
+    heartbeatFrequencyMS: 10000,
+    localThresholdMS: 15,
+    setName: 'atlas-bijdi7-shard-0',
+    maxElectionId: new ObjectId('7fffffff0000000000000184'),
+    maxSetVersion: 390,
+    commonWireVersion: 25,
+    logicalSessionTimeoutMinutes: null
+  },
+  code: undefined,
+  [cause]: MongoNetworkError: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+      at TLSSocket.<anonymous> (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cmap\connect.js:314:44)
+      at Object.onceWrapper (node:events:623:26)
+      at TLSSocket.emit (node:events:508:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+    errorLabelSet: Set(3) { 'SystemOverloadedError', 'RetryableError', 'ResetPool' },
+    beforeHandshake: false,
+    [cause]: Error: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+        at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26) {
+      errno: -3008,
+      code: 'ENOTFOUND',
+      syscall: 'getaddrinfo',
+      hostname: 'ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net'
+    }
+  }
+}
+MongoServerSelectionError: getaddrinfo ENOTFOUND ac-rsakvsu-shard-00-00.lj2tn3k.mongodb.net
+    at Topology.selectServer (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\sdam\topology.js:350:38)
+    at runNextTicks (node:internal/process/task_queues:64:5)
+    at listOnTimeout (node:internal/timers:567:9)
+    at process.processTimers (node:internal/timers:541:7)
+    at async executeOperationWithRetries (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async FindCursor._initialize (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\find_cursor.js:53:26)
+    at async FindCursor.cursorInit (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:566:27)
+    at async FindCursor.fetchBatch (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:600:13)
+    at async FindCursor.next (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\cursor\abstract_cursor.js:270:17)
+    at async Collection.findOne (C:\Users\sachi\Downloads\healjour-integration-studio-credential-workflow\healjour-next\node_modules\mongodb\lib\collection.js:314:24)
+    at async MongoStore.docGet (webpack-internal:///(api)/./server/core/store.ts:773:19)
+    at async currentUser (webpack-internal:///(api)/./server/core/portal/auth.ts:154:21)
+    at async eval (webpack-internal:///(api)/./server/app.ts:83:22)
+ GET /api/portal/cases? 304 in 7875ms
+ GET /api/portal/notifications 304 in 7873ms
+ GET /api/portal/cases? 304 in 400ms
+ GET /api/logs?limit=300 304 in 8856ms
+ GET /api/portal/notifications 304 in 9168ms
+ GET /api/portal/cases? 304 in 820ms
+ GET /api/logs?limit=300 304 in 445ms
+ GET /api/portal/notifications 304 in 502ms
