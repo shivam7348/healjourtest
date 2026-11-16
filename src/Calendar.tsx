@@ -1,7 +1,9 @@
 ﻿import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Plus, RefreshCw, Trash2, UserPlus, X } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Plus, RefreshCw, Settings2, Trash2, UserPlus, X } from "lucide-react";
+import FlabsTracker from "./FlabsTracker";
+import BookingFormSettings from "./BookingFormSettings";
 import DateTimeField from "./DateTimeField";
 import FlabsBookingForm from "./FlabsBookingForm";
 import PreBookingForm from "./PreBookingForm";
@@ -190,13 +192,17 @@ function ScheduleField({ disabled, onSave }: { disabled: boolean; onSave: (value
 
 /** Orders & Bookings: create a booking or a pre-booking, or see the calendar. */
 export function OrdersPage() {
-  const [tab, setTab] = useState<"book" | "prebook" | "calendar">("book");
-  return <>
+  const [tab, setTab] = useState<"book" | "prebook" | "calendar" | "tracker" | "form">("book");
+  const page = <>
     <div className="orders-tabs segmented">
       <Button variant="ghost" className={cn("h-auto", tab === "book" ? "selected" : "")} onClick={() => setTab("book")}><Plus size={13} /> New booking</Button>
       <Button variant="ghost" className={cn("h-auto", tab === "prebook" ? "selected" : "")} onClick={() => setTab("prebook")}><Plus size={13} /> Pre-booking</Button>
       <Button variant="ghost" className={cn("h-auto", tab === "calendar" ? "selected" : "")} onClick={() => setTab("calendar")}><CalendarDays size={13} /> Calendar</Button>
+      <Button variant="ghost" className={cn("h-auto", tab === "tracker" ? "selected" : "")} onClick={() => setTab("tracker")}><ClipboardList size={13} /> Tracker</Button>
+      <Button variant="ghost" className={cn("h-auto", tab === "form" ? "selected" : "")} onClick={() => setTab("form")}><Settings2 size={13} /> Form settings</Button>
     </div>
-    {tab === "book" ? <FlabsBookingForm /> : tab === "prebook" ? <PreBookingForm /> : <CalendarPage />}
+    {tab === "book" ? <FlabsBookingForm /> : tab === "prebook" ? <PreBookingForm /> : tab === "tracker" ? <FlabsTracker /> : tab === "form" ? <BookingFormSettings /> : <CalendarPage />}
   </>;
+  // Tracker and settings have no page wrapper of their own, so they get the standard page padding and width.
+  return tab === "tracker" || tab === "form" ? <div className="content core-page flabs-theme orders-page">{page}</div> : page;
 }

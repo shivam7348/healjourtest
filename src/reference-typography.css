@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root,
 body,
@@ -7,7 +7,7 @@ input,
 select,
 textarea,
 table {
-  font-family: 'Roboto Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 .brand-name,
@@ -16,6 +16,6 @@ table {
 .access-card-head h2,
 .access-stat b,
 .placeholder-card h2 {
-  font-family: 'Roboto Condensed', 'Arial Narrow', Arial, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 

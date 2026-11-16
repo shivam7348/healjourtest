@@ -86,7 +86,7 @@ async function recordLabUpdate(c: LabCase, user: PortalUser, action: string, ext
   if (user.role !== "healjour_admin") c.lastLabUpdateAt = at;
   await getStore().docPut(CASES, c);
   await logIntegration({
-    type: "webhook", status: "success", account: c.labName,
+    type: "lab_portal", status: "success", account: c.labName,
     title: user.role === "healjour_admin" ? `Case ${c.caseNo}: ${action}` : `Lab update received: ${c.caseNo}`,
     message: `${action}${extra.status ? ` (status ${extra.status})` : ""} by ${user.name}.`,
     integratorID: c.caseNo
@@ -313,6 +313,64 @@ export function registerPortalRoutes(app: express.Express) {
 
   // ---------- cases ----------
 
+  // Flabs booking form: which patient fields are shown, required, renamed, reordered, or added.
+  const FORM_SETTINGS = "bookingFormSettings";
+  const LOCKED_FORM_FIELDS = ["first_name", "contact", "age"];
+  const formFieldSchema = z.object({
+    key: z.string().min(1).max(60).regex(/^[A-Za-z_][A-Za-z0-9_]*$/),
+    label: z.string().trim().min(1).max(80),
+    type: z.enum(["text", "number", "date", "datetime", "select", "textarea"]),
+    visible: z.boolean(),
+    required: z.boolean(),
+    options: z.array(z.string().trim().min(1).max(60)).max(50).optional(),
+    custom: z.boolean().optional(),
+    defaultValue: z.string().max(200).optional()
+  });
+  app.get("/api/booking-form/settings", requirePermission("labs:manage"), async (_req, res) => {
+    const saved = await getStore().docGet<{ id: string; fields: unknown[] }>(FORM_SETTINGS, "default");
+    res.json({ fields: saved?.fields ?? null });
+  });
+  app.put("/api/booking-form/settings", requirePermission("labs:manage"), async (req, res) => {
+    const parsed = z.object({ fields: z.array(formFieldSchema).min(1).max(80) }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: issues(parsed.error) });
+    const keys = parsed.data.fields.map(f => f.key);
+    if (new Set(keys).size !== keys.length) return res.status(400).json({ error: "Each field needs a unique key." });
+    const fields = parsed.data.fields.map(f => LOCKED_FORM_FIELDS.includes(f.key) ? { ...f, visible: true, required: true } : f);
+    for (const k of LOCKED_FORM_FIELDS) if (!keys.includes(k)) return res.status(400).json({ error: `The ${k} field cannot be removed.` });
+    await getStore().docPut(FORM_SETTINGS, { id: "default", fields, updatedAt: new Date().toISOString(), updatedBy: req.portalUser!.name });
+    res.json({ ok: true, fields });
+  });
+
+  // Notifications = the newest case-timeline events the user may see (own lab, or all labs for Healjour admins).
+  app.get("/api/portal/notifications", requirePermission("cases:read"), async (req, res) => {
+    const user = req.portalUser!;
+    const where: Record<string, unknown> = {};
+    if (user.role !== "healjour_admin") where.labId = user.labId;
+    const cases = await getStore().docList<LabCase>(CASES, where);
+    const caseItems = cases.flatMap(c => c.timeline.map((t, i) => ({
+      id: `${c.id}:${i}`, caseId: c.id, caseNo: c.caseNo, labName: c.labName,
+      action: t.action, note: t.note, status: t.status, by: t.by, role: t.role, at: t.at,
+      fromLab: t.role !== "healjour_admin" && t.role !== "system", reportUrl: undefined as string | undefined
+    })));
+    // Flabs report links (bill.completed webhooks) are for Healjour admins only.
+    let flabsItems: typeof caseItems = [];
+    if (user.role === "healjour_admin") {
+      const logs = await getStore().listIntegrationLogs(300);
+      flabsItems = logs
+        .filter(l => l.type === "webhook" && (l.details ?? []).some(d => d.startsWith("Report: ")))
+        .map(l => ({
+          id: `flabs:${l.id}`, caseId: "", caseNo: l.integratorID ?? l.leadId ?? "", labName: l.account,
+          action: l.title, note: l.message, status: undefined, by: "Flabs", role: "system", at: l.at,
+          fromLab: false,
+          reportUrl: (l.details ?? []).find(d => d.startsWith("Report: "))!.slice("Report: ".length).trim()
+        }));
+    }
+    const items = [...caseItems, ...flabsItems]
+      .sort((a, b) => b.at.localeCompare(a.at))
+      .slice(0, 60);
+    res.json({ items });
+  });
+
   app.get("/api/portal/cases", requirePermission("cases:read"), async (req, res) => {
     const user = req.portalUser!;
     const where: Record<string, unknown> = {};
@@ -373,7 +431,7 @@ export function registerPortalRoutes(app: express.Express) {
     };
     await store.docPut(CASES, c);
     await logIntegration({
-      type: "booking", status: "success", account: lab.name, title: `Case ${c.caseNo} sent to lab`,
+      type: "lab_portal", status: "success", account: lab.name, title: `Case ${c.caseNo} sent to lab`,
       message: `${c.patient.name}, ${c.tests.length} test(s), ${c.priority}.`, integratorID: c.caseNo
     });
     await recordAudit({ actor: `${user.role}:${user.email}`, action: "lab_portal.case.create", detail: `${c.caseNo} to ${lab.code}` });

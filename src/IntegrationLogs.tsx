@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Copy, Download, RefreshCw, X } from "lucide-react";
 
 type Status = "success" | "duplicate" | "error" | "info";
-type LogType = "booking" | "sync" | "account" | "delivery" | "webhook";
+type LogType = "booking" | "sync" | "account" | "delivery" | "webhook" | "lab_portal";
 type Log = {
   id: string; at: string; type: LogType; status: Status; account: string; title: string; message: string;
   integratorID?: string; leadId?: string; httpStatus?: number; details?: string[];
@@ -18,6 +18,7 @@ const STATUS_TEXT: Record<Status, string> = {
 };
 const TYPE_TEXT: Record<LogType, string> = {
   webhook: "Webhook (from Flabs)",
+  lab_portal: "Lab Portal (partner lab)",
   booking: "Booking (from form)",
   delivery: "Order (from lab)",
   sync: "Test sync",
@@ -38,6 +39,15 @@ const CHIP: Record<Status, { bg: string; fg: string; icon: typeof CheckCircle2 }
 };
 
 const when = (iso: string) => new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+/** Turns any http(s) address in a log line into a clickable link (for example a Flabs report URL). */
+function linkify(text: string) {
+  return text.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
+    /^https?:\/\//.test(part)
+      ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="log-link">{part}</a>
+      : <span key={i}>{part}</span>
+  );
+}
 
 /** Everything the Flabs integration did, in plain words. Click a row for the full details. */
 export default function IntegrationLogs() {
@@ -165,11 +175,11 @@ export default function IntegrationLogs() {
               </Button>
               {expanded && <div className="log-detail">
                 <p><b>Meaning:</b> {STATUS_HELP[l.status]}</p>
-                <p><b>Message:</b> {l.message}</p>
+                <p><b>Message:</b> {linkify(l.message)}</p>
                 {l.httpStatus && <p><b>Flabs HTTP code:</b> {l.httpStatus}</p>}
                 {l.integratorID && <p><b>Your integrator ID:</b> <code>{l.integratorID}</code> <Button variant="ghost" className="h-auto tiny-copy" onClick={() => void copy(l.integratorID!)}><Copy size={11} /> {copied === l.integratorID ? "Copied" : "Copy"}</Button></p>}
                 {l.leadId && <p><b>Flabs lead ID:</b> <code>{l.leadId}</code> <Button variant="ghost" className="h-auto tiny-copy" onClick={() => void copy(l.leadId!)}><Copy size={11} /> {copied === l.leadId ? "Copied" : "Copy"}</Button></p>}
-                {l.details && l.details.length > 0 && <ul className="log-details">{l.details.map((d, i) => <li key={i}>{d}</li>)}</ul>}
+                {l.details && l.details.length > 0 && <ul className="log-details">{l.details.map((d, i) => <li key={i}>{linkify(d)}</li>)}</ul>}
                 <p className="muted">Entry ID: {l.id} · {new Date(l.at).toLocaleString()}</p>
               </div>}
             </div>;

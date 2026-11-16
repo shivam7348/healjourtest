@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ROLE_LABEL, type PortalLab, type PortalUser } from "./api";
 import { CasesBoard } from "./CasesBoard";
 import { TeamPanel } from "./TeamPanel";
+import { NotificationBell } from "./NotificationBell";
 
 /** What a partner lab sees after signing in: its cases, and for lab admins its team. */
 export function LabPortal({ user, lab, onLogout, onChangePassword }: { user: PortalUser; lab: PortalLab | null; onLogout: () => void; onChangePassword: () => void }) {
@@ -16,6 +17,7 @@ export function LabPortal({ user, lab, onLogout, onChangePassword }: { user: Por
         {user.role === "lab_admin" && <button type="button" className={tab === "team" ? "on" : ""} onClick={() => setTab("team")}><Users size={15} /> Team</button>}
       </nav>
       <div className="lab-portal-user">
+        <NotificationBell />
         <span><b>{user.name}</b><small>{ROLE_LABEL[user.role]}</small></span>
         <Button variant="outline" size="sm" onClick={onChangePassword}><KeyRound size={13} /> Password</Button>
         <Button variant="outline" size="sm" onClick={onLogout}><LogOut size={13} /> Sign out</Button>

@@ -1,5 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
-:root{font-family:'DM Sans',sans-serif;color:#171717;background:#f6f8fc;font-synthesis:none;text-rendering:optimizeLegibility}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+:root{font-family:'Inter',system-ui,sans-serif;color:#171717;background:#f6f8fc;font-synthesis:none;text-rendering:optimizeLegibility}
 html,body,#root{height:100%}
 body{overflow:hidden}
 .app-shell{height:100vh;min-height:0;overflow:hidden}

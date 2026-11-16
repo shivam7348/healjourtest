@@ -123,7 +123,7 @@ export type StoredFlabsConnection = {
 export type IntegrationLog = {
   id: string;
   at: string;
-  type: "booking" | "sync" | "account" | "delivery" | "webhook";
+  type: "booking" | "sync" | "account" | "delivery" | "webhook" | "lab_portal";
   status: "success" | "duplicate" | "error" | "info";
   account: string;
   title: string;
@@ -161,6 +161,20 @@ export type Appointment = {
   status: "unassigned" | "assigned" | "done" | "cancelled";
   createdAt: string;
   updatedAt: string;
+  // Filled from Flabs webhooks (tracker): latest Flabs event, bill, report link and test results.
+  flabsEvent?: string;
+  flabsEventAt?: string;
+  billId?: string;
+  reportUrl?: string;
+  reportAt?: string;
+  results?: FlabsTestResult[];
+  sampleImages?: Array<{ url: string; lat: number | null; lng: number | null; capturedAt?: string }>;
+};
+
+export type FlabsTestResult = {
+  testName: string;
+  status: string;
+  parameters: Array<{ name: string; value: string }>;
 };
 
 /**

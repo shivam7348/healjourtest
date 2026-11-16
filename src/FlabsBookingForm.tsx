@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, Send, X } from "lucide-react";
 import DateTimeField from "./DateTimeField";
 import { MapEditor, type FlabsCatalog, type MapItem } from "./PreBookingForm";
+import { DEFAULT_FIELDS, normalizeFields, type FieldConfig } from "./bookingFields";
 
 type Connection = { id: string; label: string; branchId: string | null; phase: "lead" | "booking"; party: { field: string; id: string } | null; isDefault: boolean };
 type Option = { code: string; name: string; price: number; mapped: boolean; flabsCost?: number | null };
@@ -46,6 +47,14 @@ export default function FlabsBookingForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<Result | null>(null);
+  const [toastOpen, setToastOpen] = useState(false);
+  // A successful booking shows a notification at the top of the screen for a few seconds.
+  useEffect(() => {
+    if (!result?.ok) return;
+    setToastOpen(true);
+    const t = setTimeout(() => setToastOpen(false), 7000);
+    return () => clearTimeout(t);
+  }, [result]);
 
   useEffect(() => {
     void (async () => {
@@ -84,10 +93,11 @@ export default function FlabsBookingForm() {
   const submit = async () => {
     setBusy(true); setError(""); setResult(null);
     try {
-      let customFields: Record<string, string | number | boolean> | undefined;
-      if (f.customFields.trim()) {
-        customFields = JSON.parse(f.customFields);
-      }
+      // Admin-added fields go to Flabs as customFields, together with the JSON typed in the form.
+      const typed: Record<string, string | number | boolean> = f.customFields.trim() ? JSON.parse(f.customFields) : {};
+      const fromFields = Object.fromEntries(fields.filter(fc => fc.custom && (cv[fc.key] ?? "").trim()).map(fc => [fc.key, cv[fc.key].trim()]));
+      const merged = { ...typed, ...fromFields };
+      const customFields = Object.keys(merged).length ? merged : undefined;
       const body = {
         connectionId,
         integratorID: f.integratorID || undefined,
@@ -140,7 +150,83 @@ export default function FlabsBookingForm() {
     }
   };
 
-  const canSubmit = Boolean(connectionId && f.first_name && /^\d{10}$/.test(f.contact) && f.age && (testCodes.length + packageCodes.length + unmappedTests.length + unmappedPackages.length) > 0);
+  // Patient fields (built-in + admin-added), as configured in "Form settings".
+  const [fields, setFields] = useState<FieldConfig[]>(normalizeFields(DEFAULT_FIELDS));
+  const [cv, setCv] = useState<Record<string, string>>({});
+  // Pre-fills fields that have a default set in "Form settings". Values already typed are kept.
+  const applyDefaults = (list: FieldConfig[]) => {
+    setF(prev => {
+      const next: Record<string, unknown> = { ...prev };
+      for (const fc of list) if (!fc.custom && fc.defaultValue && !String((prev as Record<string, unknown>)[fc.key] ?? "").trim()) next[fc.key] = fc.defaultValue;
+      return next as typeof prev;
+    });
+    setCv(prev => {
+      const next = { ...prev };
+      for (const fc of list) if (fc.custom && fc.defaultValue && !(prev[fc.key] ?? "").trim()) next[fc.key] = fc.defaultValue;
+      return next;
+    });
+  };
+  useEffect(() => {
+    void (async () => {
+      try {
+        const r = await fetch("/api/booking-form/settings");
+        if (!r.ok) return;
+        const d = await r.json();
+        if (d.fields) {
+          const list = normalizeFields(d.fields);
+          setFields(list);
+          applyDefaults(list);
+        }
+      } catch { /* keep the default fields */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const valueOf = (fc: FieldConfig) => (fc.custom ? cv[fc.key] ?? "" : String((f as Record<string, unknown>)[fc.key] ?? ""));
+  const emptyField = (fc: FieldConfig) => (fc.key === "contact" ? !/^\d{10}$/.test(f.contact) : !valueOf(fc).trim());
+
+  // Required items that are still empty. Shown to the user so they know what to fill before sending.
+  const missing = [
+    !connectionId && "Flabs account",
+    ...fields.filter(fc => fc.visible && fc.required && emptyField(fc)).map(fc => (fc.key === "contact" ? "Mobile number (10 digits)" : fc.label)),
+    (testCodes.length + packageCodes.length + unmappedTests.length + unmappedPackages.length) === 0 && "At least one test or package"
+  ].filter(Boolean) as string[];
+  const [showMissing, setShowMissing] = useState(false);
+  const [warnToast, setWarnToast] = useState(false);
+  const sendClick = () => {
+    if (missing.length) {
+      setShowMissing(true);
+      setWarnToast(true);
+      window.setTimeout(() => setWarnToast(false), 6000);
+      window.setTimeout(() => document.querySelector(".field-missing")?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
+      return;
+    }
+    void submit();
+  };
+  const isMissing = (fc: FieldConfig) => showMissing && fc.visible && fc.required && emptyField(fc);
+
+  /** One patient field, drawn from its settings (label, type, options, required). */
+  const renderPatientField = (fc: FieldConfig) => {
+    const cls = `field${fc.type === "textarea" || fc.key === "address" ? " full" : ""}${isMissing(fc) ? " field-missing" : ""}`;
+    const label = <span>{fc.label}{fc.required ? " *" : ""}</span>;
+    const onText = (e: { target: { value: string } }) => (fc.custom ? setCv({ ...cv, [fc.key]: e.target.value }) : set(fc.key as keyof typeof f)(e));
+    if (fc.key === "contact") return <label key={fc.key} className={cls}>{label}
+      <div className="phone-input">
+        <span className="phone-prefix">+{f.country_code || "91"}</span>
+        <input value={f.contact} onChange={e => setF({ ...f, contact: e.target.value.replace(/\D/g, "").slice(0, 10) })} placeholder="10-digit mobile" inputMode="numeric" maxLength={10} />
+      </div>
+      <small>Country code +{f.country_code || "91"}; enter only the 10-digit mobile number.</small>
+    </label>;
+    if (fc.type === "select") return <label key={fc.key} className={cls}>{label}
+      <select value={valueOf(fc)} onChange={onText}><option value="">—</option>{(fc.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}</select>
+    </label>;
+    if (fc.type === "textarea") return <label key={fc.key} className={cls}>{label}<textarea rows={2} value={valueOf(fc)} onChange={onText} /></label>;
+    if (fc.type === "datetime") return <label key={fc.key} className={cls}>{label}
+      <DateTimeField value={valueOf(fc)} onChange={v => (fc.custom ? setCv({ ...cv, [fc.key]: v }) : setF({ ...f, [fc.key]: v } as typeof f))} />
+    </label>;
+    return <label key={fc.key} className={cls}>{label}
+      <input type={fc.type === "number" ? "number" : fc.type === "date" ? "date" : "text"} min={fc.type === "number" ? 0 : undefined} value={valueOf(fc)} onChange={onText} />
+    </label>;
+  };
 
   if (connections.length === 0) {
     return <div className="content">
@@ -160,62 +246,14 @@ export default function FlabsBookingForm() {
     <div className="booking-layout">
       <div className="booking-main">
         <section className="access-card">
-          <div className="access-card-head"><div><h2>1. Account</h2><p>Choose the Flabs account for this lead or booking.</p></div></div>
+          <div className="access-card-head"><div><h2>1. Patient details</h2><p>Fields marked * are required.</p></div></div>
           <div className="form-grid">
-            <label className="field"><span>Flabs account *</span>
-              <select value={connectionId} onChange={e => setConnectionId(e.target.value)}>
-                {connections.map(c => <option key={c.id} value={c.id}>{c.label}{c.isDefault ? " (default)" : ""}</option>)}
-              </select>
-            </label>
-            {connection && <div className="booking-meta">
-              <div><small>Branch</small><code>{connection.branchId}</code></div>
-              <div><small>Phase</small><span className="booking-pill">{connection.phase === "booking" ? "Booking" : "Lead"}</span></div>
-              <div><small>Party</small>{connection.party ? <code>{connection.party.field}: {connection.party.id}</code> : <span className="muted">None (general lab)</span>}</div>
-            </div>}
+            {fields.filter(fc => fc.visible).map(fc => renderPatientField(fc))}
           </div>
         </section>
 
         <section className="access-card">
-          <div className="access-card-head"><div><h2>2. Patient details</h2><p>Fields marked * are required.</p></div></div>
-          <div className="form-grid">
-            <label className="field"><span>First name *</span><input value={f.first_name} onChange={set("first_name")} /></label>
-            <label className="field"><span>Last name</span><input value={f.last_name} onChange={set("last_name")} /></label>
-            <label className="field"><span>Designation</span><input value={f.designation} onChange={set("designation")} placeholder="Mr / Mrs / Dr" /></label>
-            <label className="field"><span>Mobile number *</span>
-              <div className="phone-input">
-                <span className="phone-prefix">+{f.country_code || "91"}</span>
-                <input value={f.contact} onChange={e => setF({ ...f, contact: e.target.value.replace(/\D/g, "").slice(0, 10) })} placeholder="10-digit mobile" inputMode="numeric" maxLength={10} />
-              </div>
-              <small>Country code +{f.country_code || "91"}; enter only the 10-digit mobile number.</small>
-            </label>
-            <label className="field"><span>Email</span><input type="email" value={f.email} onChange={set("email")} /></label>
-            <label className="field"><span>Age *</span><input type="number" min="0" value={f.age} onChange={set("age")} /></label>
-            <label className="field"><span>Age type *</span>
-              <select value={f.age_type} onChange={set("age_type")}><option value="year">Year</option><option value="month">Month</option><option value="day">Day</option></select>
-            </label>
-            <label className="field"><span>Gender</span>
-              <select value={f.gender} onChange={set("gender")}><option value="">—</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select>
-            </label>
-            <label className="field"><span>Weight (kg)</span><input type="number" min="0" value={f.weight} onChange={set("weight")} /></label>
-            <label className="field"><span>Height (cm)</span><input type="number" min="0" value={f.height} onChange={set("height")} /></label>
-            <label className="field full"><span>Address</span><input value={f.address} onChange={set("address")} /></label>
-            <label className="field"><span>Pincode</span><input value={f.pincode} onChange={set("pincode")} /></label>
-            <label className="field"><span>Google location</span><input value={f.googleLocation} onChange={set("googleLocation")} placeholder="12.97,77.59 or Maps link" /></label>
-            <label className="field"><span>Aadhaar number</span><input value={f.aadhaar_number} onChange={set("aadhaar_number")} /></label>
-            <label className="field"><span>Insurance number</span><input value={f.insurance_number} onChange={set("insurance_number")} /></label>
-            <label className="field"><span>UHID</span><input value={f.uhid} onChange={set("uhid")} /></label>
-            <label className="field"><span>Passport number</span><input value={f.passport_number} onChange={set("passport_number")} /></label>
-          </div>
-          <div className="trace-subhead">Veterinary (for pets only)</div>
-          <div className="form-grid">
-            <label className="field"><span>Owner name</span><input value={f.owner_name} onChange={set("owner_name")} /></label>
-            <label className="field"><span>Breed</span><input value={f.breed} onChange={set("breed")} /></label>
-            <label className="field"><span>Category</span><input value={f.category} onChange={set("category")} /></label>
-          </div>
-        </section>
-
-        <section className="access-card">
-          <div className="access-card-head"><div><h2>3. Lead and workflow</h2><p>Set the lead phase, source, and party mapping.</p></div></div>
+          <div className="access-card-head"><div><h2>2. Lead and workflow</h2><p>Set the lead phase, source, and party mapping.</p></div></div>
           <div className="form-grid">
             <label className="field"><span>Integrator ID</span><input value={f.integratorID} onChange={set("integratorID")} placeholder="Optional custom ID" /><small>Used for downstream tracking and webhooks.</small></label>
             <label className="field"><span>Phase</span>
@@ -236,7 +274,7 @@ export default function FlabsBookingForm() {
         </section>
 
         <section className="access-card">
-          <div className="access-card-head"><div><h2>4. Tests and packages</h2><p>Select from the Healjour catalog or add unmapped items.</p></div></div>
+          <div className="access-card-head"><div><h2>3. Tests and packages</h2><p>Select from the Healjour catalog or add unmapped items.</p></div></div>
           <CatalogPicker
             label="Tests"
             placeholder="Search a test by name or code"
@@ -260,7 +298,7 @@ export default function FlabsBookingForm() {
         </section>
 
         <section className="access-card">
-          <div className="access-card-head"><div><h2>5. Payment and booking</h2><p>Leave the total empty to auto-calculate from the selected services.</p></div></div>
+          <div className="access-card-head"><div><h2>4. Payment and booking</h2><p>Leave the total empty to auto-calculate from the selected services.</p></div></div>
           <div className="form-grid">
             <label className="field"><span>Discount (₹)</span><input type="number" min="0" value={f.discountAmount} onChange={set("discountAmount")} /></label>
             <label className="field"><span>Total (₹) — auto: ₹{selectedTotal}</span><input type="number" min="0" value={f.totalAmount} onChange={set("totalAmount")} /></label>
@@ -273,7 +311,6 @@ export default function FlabsBookingForm() {
             <label className="field"><span>Booking type</span>
               <select value={f.bookingType} onChange={set("bookingType")}><option value="">—</option><option>Home Collection</option><option>Lab Visit</option></select>
             </label>
-            <label className="field"><span>Scheduled at</span><DateTimeField value={f.scheduledAt} onChange={v => setF({ ...f, scheduledAt: v })} /></label>
             <label className="field full"><span>Special instructions</span><textarea value={f.specialInstructions} onChange={set("specialInstructions")} rows={2} /></label>
             <label className="field full"><span>Custom fields (JSON, optional)</span><textarea value={f.customFields} onChange={set("customFields")} rows={2} placeholder='{"utm_campaign": "summer_sale"}' /></label>
           </div>
@@ -281,6 +318,21 @@ export default function FlabsBookingForm() {
       </div>
 
       <aside className="booking-sidebar">
+        <section className="access-card">
+          <div className="access-card-head"><div><h2>Account</h2><p>Flabs account for this lead or booking.</p></div></div>
+          <div className="form-grid">
+            <label className="field"><span>Flabs account *</span>
+              <select value={connectionId} onChange={e => setConnectionId(e.target.value)}>
+                {connections.map(c => <option key={c.id} value={c.id}>{c.label}{c.isDefault ? " (default)" : ""}</option>)}
+              </select>
+            </label>
+            {connection && <div className="booking-meta">
+              <div><small>Branch</small><code>{connection.branchId}</code></div>
+              <div><small>Phase</small><span className="booking-pill">{connection.phase === "booking" ? "Booking" : "Lead"}</span></div>
+              <div><small>Party</small>{connection.party ? <code>{connection.party.field}: {connection.party.id}</code> : <span className="muted">None (general lab)</span>}</div>
+            </div>}
+          </div>
+        </section>
         <div className="access-card">
           <div className="access-card-head"><div><h2>Summary</h2><p>Quick check before sending.</p></div></div>
           <div className="booking-summary-list">
@@ -293,11 +345,21 @@ export default function FlabsBookingForm() {
             <small>Estimated total</small>
             <b>₹{selectedTotal}</b>
           </div>
-          {!canSubmit && <div className="booking-hint-box">Needs: connection, first name, valid 10-digit mobile, age, and at least one test or package.</div>}
+          {missing.length > 0 && <div className="missing-box"><b>Ye fields abhi bharni hain:</b><ul>{missing.map(m => <li key={m}>{m}</li>)}</ul></div>}
         </div>
       </aside>
     </div>
 
+    {toastOpen && result?.ok && <div className="top-toast" role="status">
+      <CheckCircle2 size={18} />
+      <div className="top-toast-text"><b>Booking created in Flabs</b><span>{result.leadId ? `Lead ID: ${result.leadId} · ` : ""}Integrator ID: {result.integratorID}</span></div>
+      <button type="button" className="top-toast-close" aria-label="Close notification" onClick={() => setToastOpen(false)}><X size={16} /></button>
+    </div>}
+    {warnToast && missing.length > 0 && <div className="top-toast warn" role="alert">
+      <X size={18} />
+      <div className="top-toast-text"><b>Booking abhi send nahi hui</b><span>Ye fields bharein: {missing.join(", ")}</span></div>
+      <button type="button" className="top-toast-close" aria-label="Close notification" onClick={() => setWarnToast(false)}><X size={16} /></button>
+    </div>}
     {error && <div className="access-message error"><X size={16} />{error}<Button className="h-auto" variant="ghost" onClick={() => setError("")}>Dismiss</Button></div>}
     {result?.ok && <div className="access-message success"><CheckCircle2 size={16} />{result.message}{result.leadId ? ` Lead ID: ${result.leadId}` : ""} · Integrator ID: {result.integratorID}
       {(result.unmappedTests?.length || result.unmappedPackages?.length) ? <> · Unmapped bheje: {[...(result.unmappedTests ?? []), ...(result.unmappedPackages ?? [])].join(", ")}</> : null}
@@ -308,7 +370,7 @@ export default function FlabsBookingForm() {
         <small>Estimated total</small>
         <b>₹{selectedTotal}</b>
       </div>
-      <Button variant="default" disabled={busy || !canSubmit} onClick={() => void submit()}><Send size={15} /> {busy ? "Sending…" : "Send to Flabs"}</Button>
+      <Button variant="default" disabled={busy} onClick={sendClick}><Send size={15} /> {busy ? "Sending…" : "Send to Flabs"}</Button>
     </div>
   </div>;
 }

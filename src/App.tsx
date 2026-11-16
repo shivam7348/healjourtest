@@ -10,6 +10,7 @@ import { Wand2, Building2, ClipboardList, LogOut,
 import CoreLayers from "./CoreLayers";
 import TestCatalog from "./TestCatalog";
 import TestBuilder from "./TestBuilder";
+import { NotificationBell } from "./portal/NotificationBell";
 import { AdminLabCases, AdminLabsUsers } from "./portal/AdminPortal";
 import type { PortalUser } from "./portal/api";
 import { OrdersPage } from "./Calendar";
@@ -305,7 +306,7 @@ function App({ user, onLogout, onChangePassword }: AppProps) {
       <main className="main">
         <header className="topbar">
           <div className="breadcrumbs"><SidebarTrigger /> Platform <span>/</span> Integrations <span>/</span> <b>{activeNav}</b></div>
-          <div className="top-actions"><div className="env-pill"><span/> SANDBOX</div><Button variant="ghost" className="h-auto icon-button" aria-label="Help"><CircleHelp size={19}/></Button><Button variant="ghost" className="h-auto icon-button" aria-label="Notifications"><Bell size={19}/></Button><div className="top-avatar">IE</div></div>
+          <div className="top-actions"><div className="env-pill"><span/> SANDBOX</div><Button variant="ghost" className="h-auto icon-button" aria-label="Help"><CircleHelp size={19}/></Button><NotificationBell /><div className="top-avatar">IE</div></div>
         </header>
 
         {activeNav === "Overview" ? <OverviewPage /> : activeNav === "Monitoring & SLA" ? <MonitoringPage /> : activeNav === "API & Webhooks" ? <ApiPage /> : activeNav === "Settings" ? <SettingsPage /> : activeNav === "Connector Marketplace" ? <MarketplacePage /> : activeNav === "Organizations" ? <OrganizationsPage /> : activeNav === "Integrations" ? <IntegrationsPage /> : activeNav === "Core Layers" ? <CoreLayers /> : activeNav === "Test Catalog" ? <TestCatalog /> : activeNav === "Test Builder" ? <TestBuilder /> : activeNav === "Lab Cases" ? <AdminLabCases /> : activeNav === "Labs & Users" ? <AdminLabsUsers me={user} /> : activeNav === "Orders & Bookings" ? <OrdersPage /> : activeNav === "Transactions & Logs" ? <IntegrationLogs /> : activeNav === "Partner Access" ? <PartnerAccess /> : isWizard ? <div className="content">
