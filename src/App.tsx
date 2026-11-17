@@ -191,7 +191,6 @@ function App({ user, onLogout, onChangePassword }: AppProps) {
   const activeSection = sections.find(s => s.items.some(i => i.label === activeNav)) ?? null;
   const [sectionId, setSectionId] = useState<string>(() => "integrations");
   useEffect(() => { if (activeSection) setSectionId(activeSection.id); }, [activeSection?.id]);
-  const shownSection = sections.find(s => s.id === sectionId) ?? sections[0];
   const go = (label: string) => { setActiveNav(label); setNotice(""); };
   const [search, setSearch] = useState("");
   const matches = search.trim() ? navItems.filter(i => i.label.toLowerCase().includes(search.trim().toLowerCase())).slice(0, 6) : [];
@@ -321,11 +320,12 @@ function App({ user, onLogout, onChangePassword }: AppProps) {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-          <SidebarGroup>
-            <SidebarGroupLabel className="nav-label">{shownSection.group}</SidebarGroupLabel>
+          {/* Every section is always listed, so no page is hidden when the top tabs are not visible (small screens). */}
+          {sections.map(section => <SidebarGroup key={section.id} className={sectionId === section.id ? "rz-group-on" : ""}>
+            <SidebarGroupLabel className="nav-label">{section.group}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {shownSection.items.map(item => {
+                {section.items.map(item => {
                   const Icon = item.icon;
                   return <SidebarMenuItem key={item.label}>
                     <SidebarMenuButton isActive={activeNav === item.label} tooltip={item.label} onClick={() => go(item.label)}>
@@ -335,7 +335,7 @@ function App({ user, onLogout, onChangePassword }: AppProps) {
                 })}
               </SidebarMenu>
             </SidebarGroupContent>
-          </SidebarGroup>
+          </SidebarGroup>)}
         </SidebarContent>
         <SidebarFooter>
           <div className="rz-env-row"><ShieldCheck size={16}/><span>Sandbox environment</span><span className="rz-env-badge">ON</span></div>
