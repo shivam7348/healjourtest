@@ -8,6 +8,7 @@ import { getStore } from "../store.js";
 import { callConnector, newId } from "../framework/connector.js";
 import { blindIndex, decrypt, encrypt, mask } from "../compliance/crypto.js";
 import type { Appointment } from "../models.js";
+import { publicBaseUrl } from "../public-url.js";
 
 export type Channel = "sms" | "email";
 export type TemplateId = "booking_confirmation" | "reminder" | "report_ready";
@@ -76,7 +77,7 @@ async function deliver(m: Message): Promise<Message> {
   const result = m.channel === "sms"
     ? await callConnector("exotel", "sendSms", {
         params: { sid: process.env.EXOTEL_SID?.trim() || "sandbox" },
-        body: { From: process.env.EXOTEL_SENDER_ID?.trim() || "HEALJR", To: to, Body: text, StatusCallback: process.env.PUBLIC_BASE_URL ? `${process.env.PUBLIC_BASE_URL.replace(/\/$/, "")}/api/webhooks/comms/exotel/${commsToken()}` : "" },
+        body: { From: process.env.EXOTEL_SENDER_ID?.trim() || "HEALJR", To: to, Body: text, StatusCallback: publicBaseUrl() ? `${publicBaseUrl()}/api/webhooks/comms/exotel/${commsToken()}` : "" },
         idempotencyKey: `msg-${m.id}`
       })
     : await callConnector("gmail", "sendEmail", { body: { raw: gmailRaw(to, m.subject ?? "Healjour", text) }, idempotencyKey: `msg-${m.id}` });

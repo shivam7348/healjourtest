@@ -4,6 +4,7 @@
 //
 // MongoDB credentials are deliberately NOT managed here; they stay in the environment.
 
+import { publicBaseUrl } from "./public-url.js";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -47,7 +48,7 @@ export function loadSettingsFile() {
 export function settingsStatus() {
   return {
     encryptionKeySet: Boolean(process.env.FLABS_SECRET_KEY?.trim()),
-    publicBaseUrl: (process.env.PUBLIC_BASE_URL ?? "").replace(/\/$/, "") || null,
+    publicBaseUrl: publicBaseUrl() || null,
     settingsFile: ".secrets/app.env"
   };
 }

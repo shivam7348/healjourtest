@@ -1,4 +1,5 @@
 import express from "express";
+import { publicBaseUrl } from "./core/public-url.js";
 import cors from "cors";
 import { z } from "zod";
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
@@ -104,7 +105,7 @@ function validatePaths(config: z.infer<typeof configSchema>) {
 }
 
 app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", mode: "demo", productionConnection: false, storage: storageInfo(), publicBaseUrl: (process.env.PUBLIC_BASE_URL ?? "").replace(/\/$/, "") || null });
+  res.json({ status: "ok", mode: "demo", productionConnection: false, storage: storageInfo(), publicBaseUrl: publicBaseUrl() || null });
 });
 
 app.post("/api/integrations/validate", (req, res) => {
@@ -1220,7 +1221,7 @@ app.post("/api/webhooks/flabs/:token", async (req, res) => {
 app.post("/api/flabs/connections/:id/webhooks", async (req, res) => {
   const config = getFlabsConfig(req.params.id);
   if (!config) return res.status(404).json({ ok: false, error: "Connection not found." });
-  const base = (process.env.PUBLIC_BASE_URL ?? "").trim().replace(/\/$/, "");
+  const base = publicBaseUrl();
   if (!base.startsWith("https://")) {
     return res.status(400).json({ ok: false, error: "Set PUBLIC_BASE_URL to this server's public https address (for example from a tunnel or your deployed host). Flabs cannot reach localhost." });
   }

@@ -2,6 +2,7 @@
 // /api/hub/* is admin-only (global guard in app.ts). Webhooks, the App Store OAuth/app API and cron
 // are open paths that authenticate themselves (signature, URL token, bearer token or CRON_SECRET).
 
+import { publicBaseUrl } from "./core/public-url.js";
 import type express from "express";
 import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
@@ -19,7 +20,7 @@ import { consentRecords, eraseByPhone, findByPhone, getRetention, listDataReques
 
 type Req = express.Request & { rawBody?: string };
 const zerr = (e: z.ZodError) => e.issues.map(i => `${i.path.join(".") || "body"}: ${i.message}`).join(" ");
-const base = () => (process.env.PUBLIC_BASE_URL ?? "").trim().replace(/\/$/, "") || "https://YOUR-DOMAIN";
+const base = () => publicBaseUrl() || "https://YOUR-DOMAIN";
 const who = (req: express.Request) => req.portalUser?.email ?? "admin";
 const sameToken = (a: string, b: string) => { const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); };
 const csvCell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
