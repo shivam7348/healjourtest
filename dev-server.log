@@ -9332,3 +9332,4 @@ DATA_ENCRYPTION_KEY is not set: using the development key. Set it before storing
  GET /api/calendar 304 in 97ms
  GET /api/portal/notifications 304 in 284ms
  GET /api/portal/notifications 304 in 209ms
+ GET /api/portal/notifications 304 in 234ms
