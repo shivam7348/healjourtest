@@ -69,3 +69,13 @@ Locally, the Settings screen can still create the encryption key and save a publ
 - Healjour admin: **Labs & Users** adds labs and their users (one-time password shown once), **Lab Cases** sends bookings to a lab and shows every update.
 - Lab users sign in at the same address and see only the Lab Portal with their own lab's cases. Roles: lab admin (cases + team), lab staff (status, results, reports), viewer (read and download).
 - Users, sessions, cases and reports are stored in MongoDB (collections portalUsers, portalSessions, portalLabs, labCases, labCaseReports).
+
+## Integration Hub and connector framework
+
+See `docs/INTEGRATION_HUB.md` and `docs/CONNECTOR_FRAMEWORK.md`. Before real patient data, also set:
+
+- `DATA_ENCRYPTION_KEY`: 32 random bytes, base64 (`openssl rand -base64 32`). Keep a copy in a secret manager.
+- `CRON_SECRET`: any long random string. `vercel.json` schedules `/api/cron/daily` and `/api/cron/dispatch`; Vercel sends this secret automatically.
+- `PUBLIC_BASE_URL`: the deployed https address, so the webhook URLs shown in the app are correct.
+
+Partner keys (Razorpay, Exotel, Gmail, LeadSquared, Meta, Slack) are optional: without them each connector runs against its built-in sandbox.

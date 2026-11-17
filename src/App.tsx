@@ -5,12 +5,14 @@ import { Wand2, Building2, ClipboardList, LogOut,
   Activity, ArrowDownUp, ArrowLeft, ArrowRight, Bell, Check, CheckCircle2,
   ChevronDown, CircleHelp, Clock3, Code2, Database, FileCheck2, FileSpreadsheet,
   FlaskConical, Gauge, GitCompareArrows, LayoutDashboard, LockKeyhole, Plug,
-  Plus, RefreshCw, Save, Settings2, ShieldCheck, Upload, Workflow, X, KeyRound, Copy, RotateCw, Ban, UserCheck, UserX, Layers
+  Plus, RefreshCw, Save, Settings2, ShieldCheck, Upload, Workflow, X, KeyRound, Copy, RotateCw, Ban, UserCheck, UserX, Layers, Cable, Network, Search
 } from "lucide-react";
 import CoreLayers from "./CoreLayers";
 import TestCatalog from "./TestCatalog";
 import TestBuilder from "./TestBuilder";
 import { NotificationBell } from "./portal/NotificationBell";
+import ConnectorFramework from "./ConnectorFramework";
+import IntegrationHub from "./hub/IntegrationHub";
 import { AdminLabCases, AdminLabsUsers } from "./portal/AdminPortal";
 import type { PortalUser } from "./portal/api";
 import { OrdersPage } from "./Calendar";
@@ -155,24 +157,41 @@ function App({ user, onLogout, onChangePassword }: AppProps) {
   const [rules, setRules] = useState([true, true, true, true, true, true]);
   const [mappingTab, setMappingTab] = useState<"outbound" | "inbound">("outbound");
 
-  const navItems = [
-    { label: "Overview", icon: LayoutDashboard },
-    { label: "Organizations", icon: FlaskConical },
-    { label: "Integrations", icon: Workflow },
-    { label: "Core Layers", icon: Layers },
-    { label: "Connector Marketplace", icon: Plug },
-    { label: "Integration Studio", icon: GitCompareArrows },
-    { label: "Test Catalog", icon: FileSpreadsheet },
-    { label: "Test Builder", icon: Wand2 },
-    { label: "Orders & Bookings", icon: FileCheck2 },
-    { label: "Lab Cases", icon: ClipboardList },
-    { label: "Labs & Users", icon: Building2 },
-    { label: "Transactions & Logs", icon: Activity },
-    { label: "API & Webhooks", icon: Code2 },
-    { label: "Partner Access", icon: KeyRound },
-    { label: "Monitoring & SLA", icon: Gauge },
-    { label: "Settings", icon: Settings2 }
+  // Top navbar sections; the sidebar lists the pages of the active section.
+  const sections = [
+    { id: "integrations", label: "Integrations", group: "INTEGRATION PRODUCTS", items: [
+      { label: "Integration Hub", icon: Network },
+      { label: "Connector Framework", icon: Cable },
+      { label: "Integrations", icon: Workflow },
+      { label: "Integration Studio", icon: GitCompareArrows },
+      { label: "Connector Marketplace", icon: Plug },
+      { label: "Core Layers", icon: Layers }
+    ] },
+    { id: "labs", label: "Labs", group: "LABS & CATALOGUE", items: [
+      { label: "Lab Cases", icon: ClipboardList },
+      { label: "Labs & Users", icon: Building2 },
+      { label: "Organizations", icon: FlaskConical },
+      { label: "Test Catalog", icon: FileSpreadsheet },
+      { label: "Test Builder", icon: Wand2 }
+    ] },
+    { id: "orders", label: "Orders", group: "ORDERS & DATA", items: [
+      { label: "Orders & Bookings", icon: FileCheck2 },
+      { label: "Transactions & Logs", icon: Activity }
+    ] },
+    { id: "developers", label: "Developers", group: "DEVELOPERS", items: [
+      { label: "API & Webhooks", icon: Code2 },
+      { label: "Partner Access", icon: KeyRound },
+      { label: "Monitoring & SLA", icon: Gauge }
+    ] }
   ];
+  const navItems = [{ label: "Overview", icon: LayoutDashboard }, ...sections.flatMap(s => s.items), { label: "Settings", icon: Settings2 }];
+  const activeSection = sections.find(s => s.items.some(i => i.label === activeNav)) ?? null;
+  const [sectionId, setSectionId] = useState<string>(() => "integrations");
+  useEffect(() => { if (activeSection) setSectionId(activeSection.id); }, [activeSection?.id]);
+  const shownSection = sections.find(s => s.id === sectionId) ?? sections[0];
+  const go = (label: string) => { setActiveNav(label); setNotice(""); };
+  const [search, setSearch] = useState("");
+  const matches = search.trim() ? navItems.filter(i => i.label.toLowerCase().includes(search.trim().toLowerCase())).slice(0, 6) : [];
 
   const config = useMemo(() => ({
     name: name.trim(),
@@ -267,26 +286,47 @@ function App({ user, onLogout, onChangePassword }: AppProps) {
   const isWizard = activeNav === "Integration Studio";
 
   return (
-    <SidebarProvider className="app-shell" style={{ "--sidebar-width": "264px", "--sidebar-width-icon": "66px" } as CSSProperties}>
+    <SidebarProvider className="app-shell rz" style={{ "--sidebar-width": "256px", "--sidebar-width-icon": "60px" } as CSSProperties}>
+      {/* Top navbar: brand, product sections, search, notifications, account */}
+      <header className="rz-topnav">
+        <div className="rz-brand" onClick={() => go("Overview")}><span className="rz-brand-mark"><Workflow size={16} /></span><b>healjour</b></div>
+        <nav className="rz-sections" aria-label="Sections">
+          {sections.map(s => <button key={s.id} type="button" className={sectionId === s.id ? "on" : ""} onClick={() => { setSectionId(s.id); go(s.items[0].label); }}>{s.label}</button>)}
+        </nav>
+        <div className="rz-search">
+          <Search size={15} />
+          <input placeholder="Search pages and settings" value={search} onChange={e => setSearch(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && matches[0]) { go(matches[0].label); setSearch(""); } if (e.key === "Escape") setSearch(""); }} aria-label="Search pages" />
+          {matches.length > 0 && <ul className="rz-search-results">{matches.map(m => { const Icon = m.icon; return <li key={m.label}><button type="button" onClick={() => { go(m.label); setSearch(""); }}><Icon size={14} /> {m.label}</button></li>; })}</ul>}
+        </div>
+        <div className="rz-actions">
+          <NotificationBell />
+          <button type="button" className="rz-icon" aria-label="Help" title="Help"><CircleHelp size={17} /></button>
+          <div className="rz-avatar" title={user.name}>{user.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase()}</div>
+        </div>
+      </header>
+      <div className="rz-notch" title="Partner connectors run against their sandboxes until live keys are set"><span className="rz-dot" /> SANDBOX</div>
+
       <Sidebar collapsible="icon">
-        <SidebarHeader>
-          <div className="brand">
-            <div className="brand-mark"><Workflow size={23} /></div>
-            <div><div className="brand-name">healjour</div><div className="brand-sub">INTEGRATION HUB</div></div>
-          </div>
-          <div className="workspace-label">WORKSPACE <ChevronDown size={14}/></div>
-          <div className="workspace"><div className="workspace-avatar">HJ</div><div><b>Healjour Platform</b><small>Integration operations</small></div></div>
-        </SidebarHeader>
         <SidebarContent>
           <SidebarGroup>
-            <SidebarGroupLabel className="nav-label">PLATFORM</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {navItems.map(item => {
+                <SidebarMenuItem>
+                  <SidebarMenuButton isActive={activeNav === "Overview"} tooltip="Home" onClick={() => go("Overview")}><LayoutDashboard size={17}/><span>Home</span></SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+          <SidebarGroup>
+            <SidebarGroupLabel className="nav-label">{shownSection.group}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {shownSection.items.map(item => {
                   const Icon = item.icon;
                   return <SidebarMenuItem key={item.label}>
-                    <SidebarMenuButton isActive={activeNav === item.label} tooltip={item.label} onClick={() => {setActiveNav(item.label); setNotice("");}}>
-                      <Icon size={17}/><span>{item.label}</span>{item.label === "Transactions & Logs" && <span className="nav-dot"/>}
+                    <SidebarMenuButton isActive={activeNav === item.label} tooltip={item.label} onClick={() => go(item.label)}>
+                      <Icon size={17}/><span>{item.label}</span>{item.label === "Integration Hub" && <span className="rz-new">New</span>}
                     </SidebarMenuButton>
                   </SidebarMenuItem>;
                 })}
@@ -295,7 +335,12 @@ function App({ user, onLogout, onChangePassword }: AppProps) {
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
-          <div className="secure-chip"><ShieldCheck size={16}/><span><b>Secure workspace</b><small>Demo environment</small></span></div>
+          <div className="rz-env-row"><ShieldCheck size={16}/><span>Sandbox environment</span><span className="rz-env-badge">ON</span></div>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton isActive={activeNav === "Settings"} tooltip="Account & Settings" onClick={() => go("Settings")}><Settings2 size={17}/><span>Account &amp; Settings</span></SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
           <div className="user-profile"><div className="user-avatar">{user.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase()}</div><div><b>{user.name}</b><small>Healjour admin</small></div>
             <Button variant="ghost" className="h-auto icon-button" aria-label="Change password" title="Change password" onClick={onChangePassword}><KeyRound size={15}/></Button>
             <Button variant="ghost" className="h-auto icon-button" aria-label="Sign out" title="Sign out" onClick={onLogout}><LogOut size={15}/></Button></div>
@@ -305,11 +350,10 @@ function App({ user, onLogout, onChangePassword }: AppProps) {
 
       <main className="main">
         <header className="topbar">
-          <div className="breadcrumbs"><SidebarTrigger /> Platform <span>/</span> Integrations <span>/</span> <b>{activeNav}</b></div>
-          <div className="top-actions"><div className="env-pill"><span/> SANDBOX</div><Button variant="ghost" className="h-auto icon-button" aria-label="Help"><CircleHelp size={19}/></Button><NotificationBell /><div className="top-avatar">IE</div></div>
+          <div className="breadcrumbs"><SidebarTrigger /> {activeSection ? activeSection.label : "Home"} <span>/</span> <b>{activeNav === "Overview" ? "Home" : activeNav}</b></div>
         </header>
 
-        {activeNav === "Overview" ? <OverviewPage /> : activeNav === "Monitoring & SLA" ? <MonitoringPage /> : activeNav === "API & Webhooks" ? <ApiPage /> : activeNav === "Settings" ? <SettingsPage /> : activeNav === "Connector Marketplace" ? <MarketplacePage /> : activeNav === "Organizations" ? <OrganizationsPage /> : activeNav === "Integrations" ? <IntegrationsPage /> : activeNav === "Core Layers" ? <CoreLayers /> : activeNav === "Test Catalog" ? <TestCatalog /> : activeNav === "Test Builder" ? <TestBuilder /> : activeNav === "Lab Cases" ? <AdminLabCases /> : activeNav === "Labs & Users" ? <AdminLabsUsers me={user} /> : activeNav === "Orders & Bookings" ? <OrdersPage /> : activeNav === "Transactions & Logs" ? <IntegrationLogs /> : activeNav === "Partner Access" ? <PartnerAccess /> : isWizard ? <div className="content">
+        {activeNav === "Overview" ? <OverviewPage /> : activeNav === "Monitoring & SLA" ? <MonitoringPage /> : activeNav === "API & Webhooks" ? <ApiPage /> : activeNav === "Settings" ? <SettingsPage /> : activeNav === "Connector Marketplace" ? <MarketplacePage /> : activeNav === "Organizations" ? <OrganizationsPage /> : activeNav === "Integrations" ? <IntegrationsPage /> : activeNav === "Connector Framework" ? <ConnectorFramework /> : activeNav === "Integration Hub" ? <IntegrationHub /> : activeNav === "Core Layers" ? <CoreLayers /> : activeNav === "Test Catalog" ? <TestCatalog /> : activeNav === "Test Builder" ? <TestBuilder /> : activeNav === "Lab Cases" ? <AdminLabCases /> : activeNav === "Labs & Users" ? <AdminLabsUsers me={user} /> : activeNav === "Orders & Bookings" ? <OrdersPage /> : activeNav === "Transactions & Logs" ? <IntegrationLogs /> : activeNav === "Partner Access" ? <PartnerAccess /> : isWizard ? <div className="content">
           <div className="page-heading">
             <div><div className="eyebrow">INTEGRATION CONFIGURATION</div><h1>Create integration</h1><p>Set up how Healjour and a lab exchange CSV files, one simple step at a time.</p></div>
             <div className="heading-actions"><Button variant="outline" onClick={() => {setStep(0); setNotice("Wizard reset to step 1.");}}> <RefreshCw size={16}/> Reset wizard</Button><Button variant="default" onClick={saveDraft}><Save size={16}/> Save draft</Button></div>

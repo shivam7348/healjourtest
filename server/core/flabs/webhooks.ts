@@ -47,6 +47,50 @@ function resultsOf(d: any): FlabsTestResult[] | undefined {
   return list.some((t: any) => t?.testName) ? mapTestData(list) : undefined;
 }
 
+export type FlabsResultRecord = {
+  id: string;                 // Flabs bill ID (or our integrator ID when Flabs did not send one)
+  integratorID: string;
+  leadId?: string;
+  account: string;
+  patientName: string;
+  contact: string;
+  reportUrl?: string;
+  tests?: FlabsTestResult[];
+  // Reference ranges read from the report PDF (see reportRanges.ts).
+  refRanges?: Array<{ name: string; unit: string; low: number; high: number; labFlag?: "L" | "H" }>;
+  refExtractedAt?: string;
+  refError?: string;
+  receivedAt: string;
+  updatedAt: string;
+};
+
+/** Saves or updates one bill's results in the flabsResults table. Keeps the first receive time and any older values not sent again. */
+export async function saveResultRecord(input: {
+  id: string; integratorID: string; leadId?: string; account: string; patientName: string; contact: string;
+  reportUrl?: string; tests?: FlabsTestResult[]; at: string;
+}) {
+  if (!input.id) return;
+  const store = getStore();
+  const existing = await store.docGet<FlabsResultRecord>("flabsResults", input.id);
+  const record: FlabsResultRecord = {
+    id: input.id,
+    integratorID: input.integratorID,
+    leadId: input.leadId ?? existing?.leadId,
+    account: input.account,
+    patientName: input.patientName || existing?.patientName || "",
+    contact: input.contact || existing?.contact || "",
+    reportUrl: input.reportUrl ?? existing?.reportUrl,
+    tests: input.tests?.length ? input.tests : existing?.tests ?? [],
+    // A new report link means the old ranges no longer describe it, so they are read again.
+    ...(input.reportUrl && input.reportUrl !== existing?.reportUrl
+      ? {}
+      : { refRanges: existing?.refRanges, refExtractedAt: existing?.refExtractedAt, refError: existing?.refError }),
+    receivedAt: existing?.receivedAt ?? input.at,
+    updatedAt: input.at
+  };
+  await store.docPut("flabsResults", record);
+}
+
 export type FlabsEvent = {
   labID?: string;
   eventType: string;
@@ -156,6 +200,18 @@ export async function handleFlabsEvent(accountLabel: string, event: FlabsEvent):
     } else if (status) {
       note = "No matching booking in Healjour, so the calendar was not changed.";
     }
+  }
+
+  // Results and report links are also kept in their own table (flabsResults) for the Results tool.
+  const resultList = resultsOf(event.data);
+  if (integratorID && (resultList || event.data?.reportURL)) {
+    await saveResultRecord({
+      id: String(event.data?.billID ?? event.data?.reportID ?? integratorID),
+      integratorID, leadId: event.data?.leadID ? String(event.data.leadID) : undefined,
+      account: accountLabel, patientName: patient, contact: String(event.data?.patientData?.contact ?? ""),
+      reportUrl: event.data?.reportURL ? String(event.data.reportURL) : undefined,
+      tests: resultList, at: new Date().toISOString()
+    });
   }
 
   await logIntegration({

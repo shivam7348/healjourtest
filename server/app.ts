@@ -9,7 +9,9 @@ import { coreTopology, runPipeline, samplePayloads } from "./core/pipeline.js";
 import { connectStore, getStore } from "./core/store.js";
 import type { PartnerLab, StudioIntegration } from "./core/models.js";
 import { deleteWebhook, listPackages, listTests, listWebhooks, PARTY_REQUIRED_HINT, subscribeWebhook, testFlabsConnection } from "./core/flabs/client.js";
-import { FLABS_EVENTS, handleFlabsEvent, type FlabsEvent } from "./core/flabs/webhooks.js";
+import { FLABS_EVENTS, handleFlabsEvent, saveResultRecord, type FlabsEvent, type FlabsResultRecord } from "./core/flabs/webhooks.js";
+import { buildSmartReport, renderSmartReportHtml, type ParameterRange } from "./core/flabs/smartReport.js";
+import { refreshRecordRanges } from "./core/flabs/reportRanges.js";
 import { syncFlabsCatalog } from "./core/flabs/sink.js";
 import { autoPrebook, describeAutoPrebook, ensureCatalogSynced, syncAllInBackground } from "./core/flabs/auto.js";
 import {
@@ -22,6 +24,9 @@ import { checkAgainstSettings, emptyPrebookingSettings, preBookingSchema, preboo
 import { listFolders, receiveResults, sendOrders, simulateLab } from "./core/studio-runner.js";
 import { aiStatus, draftTests, suggestMatches } from "./core/test-builder.js";
 import { registerPortalRoutes } from "./portal-routes.js";
+import { registerFrameworkRoutes } from "./framework-routes.js";
+import { registerHubRoutes } from "./hub-routes.js";
+import { linkBookingToLead } from "./core/hub/leads.js";
 import { can, currentUser } from "./core/portal/auth.js";
 import { recordAudit } from "./core/identity.js";
 import { logIntegration } from "./core/logs.js";
@@ -35,10 +40,14 @@ const storageInfo = () => {
 const app = express();
 app.use(cors());
 // 5 MB: lab reports are uploaded as base64 JSON (files up to 3 MB).
-app.use(express.json({ limit: "5mb" }));
+// The raw body is kept so webhook signatures (Razorpay, Meta) can be checked over the exact bytes received.
+const keepRaw = (req: express.Request, _res: express.Response, buf: Buffer) => { (req as express.Request & { rawBody?: string }).rawBody = buf.toString("utf8"); };
+app.use(express.json({ limit: "5mb", verify: keepRaw }));
+app.use(express.urlencoded({ extended: false, limit: "1mb", verify: keepRaw })); // Exotel callbacks and OAuth token requests are form-encoded
 
 // Sign-in and the Lab Portal check their own permissions. Everything else under /api is for Healjour admins only.
-const OPEN_API = ["/api/health", "/api/auth/", "/api/portal/", "/api/webhooks/"];
+// Webhooks, the App Store OAuth/app API and cron each authenticate on their own (signature, token or secret).
+const OPEN_API = ["/api/health", "/api/auth/", "/api/portal/", "/api/webhooks/", "/api/appstore/oauth/", "/api/apps/v1/", "/api/cron/"];
 app.use(async (req, res, next) => {
   if (!req.path.startsWith("/api/") || OPEN_API.some(p => req.path === p || req.path.startsWith(p))) return next();
   try {
@@ -52,6 +61,8 @@ app.use(async (req, res, next) => {
   }
 });
 registerPortalRoutes(app);
+registerFrameworkRoutes(app);
+registerHubRoutes(app);
 
 const configSchema = z.object({
   name: z.string().trim().min(3).max(100),
@@ -790,6 +801,8 @@ app.post("/api/flabs/bookings", async (req, res) => {
       bookingType: parsed.data.bookingType, address: parsed.data.address,
       scheduledAt: parsed.data.scheduledAt, status: "unassigned", createdAt: nowIso, updatedAt: nowIso
     });
+    // Enquiry → booking tracking: an open lead with this phone is marked booked.
+    await linkBookingToLead(parsed.data.contact, result.integratorID).catch(() => null);
     await logIntegration({
       type: "booking", status: result.duplicate ? "duplicate" : "success", account: config.label,
       title: result.duplicate ? "Duplicate - already in Flabs" : `${result.phase === "booking" ? "Booking" : "Lead"} created in Flabs`,
@@ -1083,6 +1096,64 @@ app.get("/api/calendar", async (_req, res) => {
   const store = getStore();
   const [staff, appointments] = await Promise.all([store.listStaff(), store.listAppointments()]);
   res.json({ staff, appointments });
+});
+
+// Results tool: every Flabs result and report saved in Healjour's database, newest first.
+app.get("/api/flabs/results", async (_req, res) => {
+  const records = await getStore().docList<FlabsResultRecord>("flabsResults");
+  res.json({ records: records.sort((a, b) => b.receivedAt.localeCompare(a.receivedAt)) });
+});
+
+// Reference ranges used to flag values in smart reports (set by admins; empty by default).
+app.get("/api/flabs/parameter-ranges", async (_req, res) => {
+  const doc = await getStore().docGet<{ id: string; ranges: ParameterRange[] }>("parameterRanges", "default");
+  res.json({ ranges: doc?.ranges ?? [] });
+});
+app.put("/api/flabs/parameter-ranges", async (req, res) => {
+  const parsed = z.object({
+    ranges: z.array(z.object({
+      name: z.string().trim().min(1).max(120),
+      unit: z.string().trim().max(30).optional(),
+      low: z.number().finite().optional(),
+      high: z.number().finite().optional()
+    })).max(500)
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues.map(i => i.message).join(" ") });
+  await getStore().docPut("parameterRanges", { id: "default", ranges: parsed.data.ranges, updatedAt: new Date().toISOString() });
+  res.json({ ok: true, ranges: parsed.data.ranges });
+});
+
+// Smart report for one bill: Healjour-branded, printable (save as PDF from the browser).
+app.get("/api/flabs/results/:id/smart-report", async (req, res) => {
+  let rec = await getStore().docGet<FlabsResultRecord>("flabsResults", req.params.id);
+  if (!rec) return res.status(404).type("text/plain").send("No results saved for this bill.");
+  // First time we open this bill's report: read the reference ranges from the lab's PDF and keep them.
+  if (rec.reportUrl && rec.refRanges === undefined) {
+    await refreshRecordRanges(rec.id);
+    rec = (await getStore().docGet<FlabsResultRecord>("flabsResults", req.params.id)) ?? rec;
+  }
+  const doc = await getStore().docGet<{ id: string; ranges: ParameterRange[] }>("parameterRanges", "default");
+  const report = buildSmartReport(rec, doc?.ranges ?? []);
+  res.type("text/html").send(renderSmartReportHtml(report));
+});
+
+// Reads the reference ranges again from the bill's report PDF (e.g. after the lab uploads a corrected report).
+app.post("/api/flabs/results/:id/extract-ranges", async (req, res) => {
+  const out = await refreshRecordRanges(req.params.id);
+  res.status(out.ok ? 200 : 422).json({ ...out, message: out.ok ? `${out.count} reference range(s) read from the report.` : out.error });
+});
+
+// Copies results that arrived before this table existed (from the booking tracker) into the database.
+app.post("/api/flabs/results/backfill", async (_req, res) => {
+  const appointments = (await getStore().listAppointments()).filter(a => a.integratorID && (a.results?.length || a.reportUrl));
+  for (const a of appointments) {
+    await saveResultRecord({
+      id: a.billId ?? a.integratorID, integratorID: a.integratorID, leadId: a.leadId, account: a.account,
+      patientName: a.patientName, contact: a.contact, reportUrl: a.reportUrl, tests: a.results,
+      at: a.reportAt ?? a.updatedAt
+    });
+  }
+  res.json({ ok: true, saved: appointments.length, message: `${appointments.length} booking(s) saved to the results database.` });
 });
 
 app.post("/api/staff", async (req, res) => {

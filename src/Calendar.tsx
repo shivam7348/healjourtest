@@ -1,9 +1,10 @@
 ﻿import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Plus, RefreshCw, Settings2, Trash2, UserPlus, X } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Download, Plus, RefreshCw, Settings2, Trash2, UserPlus, X } from "lucide-react";
 import FlabsTracker from "./FlabsTracker";
 import BookingFormSettings from "./BookingFormSettings";
+import FlabsResults from "./FlabsResults";
 import DateTimeField from "./DateTimeField";
 import FlabsBookingForm from "./FlabsBookingForm";
 import PreBookingForm from "./PreBookingForm";
@@ -35,6 +36,8 @@ export function CalendarPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  // Phones start in the list view; a 7-column week does not fit a narrow screen.
+  const [view, setView] = useState<"week" | "list">(() => (typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches ? "list" : "week"));
 
   const load = async () => {
     try {
@@ -104,19 +107,30 @@ export function CalendarPage() {
     });
   };
 
-  const card = (a: Appointment) => <div key={a.id} className={`cal-card status-${a.status}`}>
-    <div className="cal-card-top"><b>{a.scheduledAt ? timeOf(a.scheduledAt) : "No time"}</b><span>{a.patientName || "Patient"}</span></div>
-    <small>{a.tests.join(", ") || "No tests"}</small>
-    <small>{a.account}{a.bookingType ? ` · ${a.bookingType}` : ""}</small>
-    <div className="cal-card-actions">
+  const STATUS_TEXT: Record<Appointment["status"], string> = { unassigned: "Unassigned", assigned: "Assigned", done: "Done", cancelled: "Cancelled" };
+  const itemsFor = (day: Date) => appointments
+    .filter(a => a.scheduledAt && sameDay(new Date(a.scheduledAt), day) && a.status !== "cancelled")
+    .sort((x, y) => (x.scheduledAt! < y.scheduledAt! ? -1 : 1));
+  const weekCount = days.reduce((n, d) => n + itemsFor(d).length, 0);
+  const today = new Date();
+
+  const card = (a: Appointment) => <article key={a.id} className={`cal2-card s-${a.status}`}>
+    <div className="cal2-card-top">
+      <span className="cal2-time">{a.scheduledAt ? timeOf(a.scheduledAt) : "No time"}</span>
+      <span className={`cal2-badge s-${a.status}`}>{STATUS_TEXT[a.status]}</span>
+    </div>
+    <b className="cal2-patient">{a.patientName || "Patient"}</b>
+    <small className="cal2-tests" title={a.tests.join(", ")}>{a.tests.join(", ") || "No tests"}</small>
+    <small className="cal2-meta">{a.account}{a.bookingType ? ` · ${a.bookingType}` : ""}</small>
+    <div className="cal2-actions">
       <select value={a.staffId ?? ""} disabled={busy} onChange={e => void assign(a, e.target.value)} aria-label="Assign staff">
-        <option value="">Unassigned</option>
+        <option value="">Assign staff…</option>
         {staff.map(s => <option key={s.id} value={s.id}>{s.name} ({s.role})</option>)}
       </select>
-      {a.status !== "done" && a.status !== "cancelled" && <Button variant="outline" size="sm" disabled={busy} onClick={() => void setStatus(a, "done")}><CheckCircle2 size={12} /> Done</Button>}
+      {a.status !== "done" && a.status !== "cancelled" && <Button variant="outline" size="sm" disabled={busy} onClick={() => void setStatus(a, "done")} aria-label="Mark done"><CheckCircle2 size={13} /></Button>}
     </div>
     {!a.scheduledAt && <ScheduleField disabled={busy} onSave={value => void schedule(a, value)} />}
-  </div>;
+  </article>;
 
   return <div className="content core-page flabs-theme calendar-page">
     <div className="page-heading">
@@ -127,82 +141,114 @@ export function CalendarPage() {
     {error && <div className="access-message error"><X size={16} />{error}<Button className="h-auto" variant="ghost" onClick={() => setError("")}>Dismiss</Button></div>}
     {notice && <div className="access-message success"><CheckCircle2 size={16} />{notice}<Button className="h-auto" variant="ghost" onClick={() => setNotice("")}>Dismiss</Button></div>}
 
-    <div className="platform-stats">
-      <div className="platform-stat"><small>Staff</small><b>{staff.length}</b><span>Available for assignment</span></div>
-      <div className="platform-stat"><small>Unassigned</small><b>{unassignedCount}</b><span>Bookings still without staff</span></div>
-      <div className="platform-stat"><small>Waiting for a time</small><b>{unscheduled.length}</b><span>Bookings with no appointment time</span></div>
+    <div className="cal2-stats">
+      <div><small>This week</small><b>{weekCount}</b></div>
+      <div><small>Unassigned</small><b className={unassignedCount ? "warn" : ""}>{unassignedCount}</b></div>
+      <div><small>Waiting for a time</small><b className={unscheduled.length ? "warn" : ""}>{unscheduled.length}</b></div>
+      <div><small>Staff</small><b>{staff.length}</b></div>
     </div>
 
-    <div className="calendar-layout">
-      <aside className="calendar-side">
+    <div className="cal2-layout">
+      <section className="cal2-main">
+        <div className="cal2-toolbar">
+          <div className="cal2-nav">
+            <Button variant="outline" size="sm" onClick={() => setWeekStart(new Date(weekStart.getTime() - 7 * DAY_MS))} aria-label="Previous week"><ChevronLeft size={15} /></Button>
+            <Button variant="outline" size="sm" onClick={() => setWeekStart(startOfWeek(new Date()))}>Today</Button>
+            <Button variant="outline" size="sm" onClick={() => setWeekStart(new Date(weekStart.getTime() + 7 * DAY_MS))} aria-label="Next week"><ChevronRight size={15} /></Button>
+          </div>
+          <b className="cal2-range">{days[0].toLocaleDateString("en-IN", { day: "2-digit", month: "short" })} – {days[6].toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</b>
+          <div className="cal2-view" role="tablist" aria-label="Calendar view">
+            <button type="button" role="tab" aria-selected={view === "week"} className={view === "week" ? "on" : ""} onClick={() => setView("week")}>Week</button>
+            <button type="button" role="tab" aria-selected={view === "list"} className={view === "list" ? "on" : ""} onClick={() => setView("list")}>List</button>
+          </div>
+        </div>
+
+        {view === "week" ? <div className="cal2-week-scroll"><div className="cal2-week">
+          {days.map(day => {
+            const items = itemsFor(day);
+            const isToday = sameDay(day, today);
+            return <div key={day.toISOString()} className={`cal2-day${isToday ? " today" : ""}`}>
+              <div className="cal2-day-head">
+                <span>{day.toLocaleDateString("en-IN", { weekday: "short" })}</span>
+                <b>{day.getDate()}</b>
+                {items.length > 0 && <em>{items.length}</em>}
+              </div>
+              <div className="cal2-day-body">{items.length === 0 ? <p className="cal2-empty">—</p> : items.map(card)}</div>
+            </div>;
+          })}
+        </div></div> : <div className="cal2-list">
+          {days.map(day => {
+            const items = itemsFor(day);
+            const isToday = sameDay(day, today);
+            return <div key={day.toISOString()} className={`cal2-list-day${isToday ? " today" : ""}`}>
+              <div className="cal2-list-head">
+                <b>{day.toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "short" })}</b>
+                {isToday && <span className="cal2-today-pill">Today</span>}
+                <small>{items.length ? `${items.length} booking${items.length > 1 ? "s" : ""}` : "No bookings"}</small>
+              </div>
+              {items.length > 0 && <div className="cal2-list-grid">{items.map(card)}</div>}
+            </div>;
+          })}
+        </div>}
+      </section>
+
+      <aside className="cal2-side">
         <section className="access-card">
-          <div className="access-card-head"><div><h2>Medical staff</h2><p>Add the people who handle bookings.</p></div></div>
-          <div className="staff-add">
+          <div className="access-card-head"><div><h2>Waiting for a time</h2><p>Bookings without an appointment time.</p></div></div>
+          {unscheduled.length === 0 ? <p className="cal2-empty-note">Nothing waiting.</p> :
+            <div className="cal2-stack">{unscheduled.map(card)}</div>}
+        </section>
+
+        <section className="access-card">
+          <div className="access-card-head"><div><h2>Medical staff</h2><p>The people who handle bookings.</p></div></div>
+          <div className="cal2-staff-add">
             <input placeholder="Name" value={newStaff.name} onChange={e => setNewStaff({ ...newStaff, name: e.target.value })} />
             <input placeholder="Role (e.g. Phlebotomist)" value={newStaff.role} onChange={e => setNewStaff({ ...newStaff, role: e.target.value })} />
             <Button variant="default" size="sm" disabled={busy || newStaff.name.trim().length < 2 || newStaff.role.trim().length < 2} onClick={() => void addStaff()}><UserPlus size={13} /> Add staff</Button>
           </div>
-          {staff.length === 0 ? <p className="delivery-reason">No staff yet. Add someone above to start assigning.</p> :
-            <ul className="staff-list">{staff.map(s => <li key={s.id}>
-              <span><b>{s.name}</b><small>{s.role}</small></span>
-              <span className="muted">{appointments.filter(a => a.staffId === s.id && a.status !== "cancelled").length} booked</span>
+          {staff.length === 0 ? <p className="cal2-empty-note">No staff yet. Add someone above to start assigning.</p> :
+            <ul className="cal2-staff">{staff.map(s => <li key={s.id}>
+              <span className="cal2-avatar">{s.name.split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase()}</span>
+              <span className="cal2-staff-name"><b>{s.name}</b><small>{s.role}</small></span>
+              <span className="cal2-staff-count">{appointments.filter(a => a.staffId === s.id && a.status !== "cancelled").length}</span>
               <Button variant="ghost" className="h-auto icon-button-small" aria-label={`Remove ${s.name}`} onClick={() => removeStaff(s)}><Trash2 size={13} /></Button>
             </li>)}</ul>}
         </section>
-
-        <section className="access-card">
-          <div className="access-card-head"><div><h2>Waiting for a time</h2><p>Bookings without an appointment time.</p></div></div>
-          {unscheduled.length === 0 ? <p className="delivery-reason">Nothing waiting.</p> :
-            <div className="cal-stack">{unscheduled.map(card)}</div>}
-        </section>
       </aside>
-
-      <section className="calendar-main">
-        <div className="calendar-nav">
-          <Button variant="outline" size="sm" onClick={() => setWeekStart(new Date(weekStart.getTime() - 7 * DAY_MS))}><ChevronLeft size={14} /> Previous</Button>
-          <Button variant="outline" size="sm" onClick={() => setWeekStart(startOfWeek(new Date()))}><CalendarDays size={14} /> This week</Button>
-          <Button variant="outline" size="sm" onClick={() => setWeekStart(new Date(weekStart.getTime() + 7 * DAY_MS))}>Next <ChevronRight size={14} /></Button>
-          <b className="calendar-range">{days[0].toLocaleDateString("en-IN", { day: "2-digit", month: "short" })} – {days[6].toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</b>
-        </div>
-        <div className="calendar-week">
-          {days.map(day => {
-            const dayItems = appointments
-              .filter(a => a.scheduledAt && sameDay(new Date(a.scheduledAt), day) && a.status !== "cancelled")
-              .sort((x, y) => (x.scheduledAt! < y.scheduledAt! ? -1 : 1));
-            return <div key={day.toISOString()} className={`cal-day ${sameDay(day, new Date()) ? "is-today" : ""}`}>
-              <div className="cal-day-head"><small>{day.toLocaleDateString("en-IN", { weekday: "short" })}</small><b>{day.getDate()}</b></div>
-              {dayItems.length === 0 ? <p className="cal-empty">No bookings</p> : dayItems.map(card)}
-            </div>;
-          })}
-        </div>
-      </section>
     </div>
   </div>;
 }
 
 /** Picks a day and a 30-minute slot, then saves it only when the user confirms. */
 function ScheduleField({ disabled, onSave }: { disabled: boolean; onSave: (value: string) => void }) {
+  const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
-  return <div className="cal-time">
-    <small>Set time</small>
+  if (!open) return <Button variant="outline" size="sm" className="cal2-set-time" disabled={disabled} onClick={() => setOpen(true)}><CalendarDays size={13} /> Set time</Button>;
+  return <div className="cal2-time">
     <DateTimeField value={value} onChange={setValue} disabled={disabled} />
-    <Button variant="default" size="sm" disabled={disabled || !value} onClick={() => onSave(value)}><CalendarDays size={13} /> Save time</Button>
+    <div className="cal2-time-actions">
+      <Button variant="default" size="sm" disabled={disabled || !value} onClick={() => onSave(value)}>Save time</Button>
+      <Button variant="outline" size="sm" onClick={() => { setOpen(false); setValue(""); }}>Cancel</Button>
+    </div>
   </div>;
 }
 
 /** Orders & Bookings: create a booking or a pre-booking, or see the calendar. */
 export function OrdersPage() {
-  const [tab, setTab] = useState<"book" | "prebook" | "calendar" | "tracker" | "form">("book");
+  const [tab, setTab] = useState<"book" | "prebook" | "calendar" | "tracker" | "form" | "results">("book");
+  // Tracker, settings and results have no page wrapper of their own, so the whole tab gets the standard page padding.
+  // The other tabs bring their own wrapper; their tab bar is aligned to the same width and padding.
+  const wrapped = tab === "tracker" || tab === "form" || tab === "results";
   const page = <>
-    <div className="orders-tabs segmented">
+    <div className={wrapped ? "" : "orders-tabs-bar"}><div className="orders-tabs segmented">
       <Button variant="ghost" className={cn("h-auto", tab === "book" ? "selected" : "")} onClick={() => setTab("book")}><Plus size={13} /> New booking</Button>
       <Button variant="ghost" className={cn("h-auto", tab === "prebook" ? "selected" : "")} onClick={() => setTab("prebook")}><Plus size={13} /> Pre-booking</Button>
       <Button variant="ghost" className={cn("h-auto", tab === "calendar" ? "selected" : "")} onClick={() => setTab("calendar")}><CalendarDays size={13} /> Calendar</Button>
       <Button variant="ghost" className={cn("h-auto", tab === "tracker" ? "selected" : "")} onClick={() => setTab("tracker")}><ClipboardList size={13} /> Tracker</Button>
       <Button variant="ghost" className={cn("h-auto", tab === "form" ? "selected" : "")} onClick={() => setTab("form")}><Settings2 size={13} /> Form settings</Button>
-    </div>
-    {tab === "book" ? <FlabsBookingForm /> : tab === "prebook" ? <PreBookingForm /> : tab === "tracker" ? <FlabsTracker /> : tab === "form" ? <BookingFormSettings /> : <CalendarPage />}
+      <Button variant="ghost" className={cn("h-auto", tab === "results" ? "selected" : "")} onClick={() => setTab("results")}><Download size={13} /> Results</Button>
+    </div></div>
+    {tab === "book" ? <FlabsBookingForm /> : tab === "prebook" ? <PreBookingForm /> : tab === "tracker" ? <FlabsTracker /> : tab === "form" ? <BookingFormSettings /> : tab === "results" ? <FlabsResults /> : <CalendarPage />}
   </>;
-  // Tracker and settings have no page wrapper of their own, so they get the standard page padding and width.
-  return tab === "tracker" || tab === "form" ? <div className="content core-page flabs-theme orders-page">{page}</div> : page;
+  return wrapped ? <div className="content core-page flabs-theme orders-page">{page}</div> : page;
 }

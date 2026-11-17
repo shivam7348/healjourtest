@@ -115,6 +115,38 @@ export default function PreBookingForm({ connectionId: fixedId, embedded = false
     .map(p => ({ package_name: p.package_name.trim(), tests: cleanList(p.tests.split(",")) }))
     .filter(p => p.package_name && p.tests.length);
   const serviceCount = testCodes.length + packageCodes.length + cleanList(extraTests).length + cleanList(extraPackages).length + cleanPackages.length;
+  // Add a referring doctor right from the pre-booking form: it is saved to this lab's setup and selected.
+  const [newDoctor, setNewDoctor] = useState({ open: false, name: "", flabsId: "" });
+  const [docBusy, setDocBusy] = useState(false);
+  const [docError, setDocError] = useState("");
+  const addDoctor = async () => {
+    const name = newDoctor.name.trim();
+    const flabsId = newDoctor.flabsId.trim();
+    if (name.length < 2 || flabsId.length < 2) return setDocError("Enter the doctor's name and Flabs doctor ID.");
+    if (settings.doctors.some(d => d.flabsId === flabsId)) return setDocError("This Flabs doctor ID is already in the list.");
+    setDocBusy(true); setDocError("");
+    try {
+      const body = {
+        leadSources: settings.leadSources,
+        rateListTypes: settings.rateListTypes,
+        doctors: [...settings.doctors.map(({ name: n, flabsId: id }) => ({ name: n, flabsId: id })), { name, flabsId }],
+        hospitals: settings.hospitals.map(({ name: n, flabsId: id }) => ({ name: n, flabsId: id })),
+        autoPrebooking: Boolean(settings.autoPrebooking),
+        defaultLeadSource: settings.defaultLeadSource || undefined,
+        defaultRateListType: settings.defaultRateListType || undefined
+      };
+      const res = await fetch(`/api/flabs/connections/${encodeURIComponent(connectionId)}/prebooking-settings`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not save the doctor.");
+      await loadOptions(connectionId);
+      setF(prev => ({ ...prev, doctor: flabsId }));
+      setNewDoctor({ open: false, name: "", flabsId: "" });
+    } catch (e) { setDocError(e instanceof Error ? e.message : "Could not save the doctor."); }
+    finally { setDocBusy(false); }
+  };
+
   const canSubmit = Boolean(connectionId && f.first_name.trim() && f.gender && f.age !== "" && Number.isInteger(Number(f.age)) && f.lead_source.trim() && serviceCount > 0);
 
   const chosenTests = (options?.tests ?? []).filter(t => testCodes.includes(t.code));
@@ -229,9 +261,10 @@ export default function PreBookingForm({ connectionId: fixedId, embedded = false
                 : <><input value={f.rate_list_type} onChange={set("rate_list_type")} placeholder="Optional" /><small>Optional. Add rate lists in Pre-booking setup to pick from a list.</small></>}
             </label>
             <label className="field"><span>Referring doctor</span>
-              <select value={f.doctor} onChange={set("doctor")} disabled={!settings.doctors.length}>
-                <option value="">{settings.doctors.length ? "None" : "No doctors mapped yet"}</option>
+              <select value={f.doctor} onChange={e => (e.target.value === "__new" ? setNewDoctor({ ...newDoctor, open: true }) : setF({ ...f, doctor: e.target.value }))}>
+                <option value="">{settings.doctors.length ? "None" : "No doctors yet"}</option>
                 {settings.doctors.map(d => <option key={d.flabsId} value={d.flabsId}>{d.name}</option>)}
+                <option value="__new">+ Add new doctor</option>
               </select>
             </label>
             <label className="field"><span>Referring hospital</span>
@@ -240,6 +273,17 @@ export default function PreBookingForm({ connectionId: fixedId, embedded = false
                 {settings.hospitals.map(h => <option key={h.flabsId} value={h.flabsId}>{h.name}</option>)}
               </select>
             </label>
+            {newDoctor.open && <div className="field full doctor-add">
+              <b>New referring doctor</b>
+              <div className="doctor-add-row">
+                <input value={newDoctor.name} onChange={e => setNewDoctor({ ...newDoctor, name: e.target.value })} placeholder="Doctor name, e.g. Dr. Anil Verma" />
+                <input value={newDoctor.flabsId} onChange={e => setNewDoctor({ ...newDoctor, flabsId: e.target.value })} placeholder="Flabs doctor ID" />
+                <Button variant="default" size="sm" disabled={docBusy} onClick={() => void addDoctor()}>{docBusy ? "Saving…" : "Save doctor"}</Button>
+                <Button variant="outline" size="sm" onClick={() => { setNewDoctor({ open: false, name: "", flabsId: "" }); setDocError(""); }}>Cancel</Button>
+              </div>
+              {docError && <div className="access-message error">{docError}</div>}
+              <small>Saved to this lab's Pre-booking setup, so it stays in the list next time.</small>
+            </div>}
             <label className="field"><span>Integrator ID</span><input value={f.integrator_id} onChange={set("integrator_id")} placeholder="Left empty: created automatically" /><small>Your own ID. Flabs sends it back in webhooks.</small></label>
             <label className="field"><span>Barcode</span><input value={f.barCode} onChange={set("barCode")} /><small>Optional. Must be unique in Flabs.</small></label>
           </div>
