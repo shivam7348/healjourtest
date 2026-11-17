@@ -27,6 +27,7 @@ function useLive() {
         fetch("/api/flabs/connections").then(r => r.json()),
         fetch("/api/logs?limit=300").then(r => r.json()),
         fetch("/api/core/topology").then(r => r.json())
+        //
       ]);
       setConnections(c.connections ?? []);
       setLogs(l.logs ?? []);
