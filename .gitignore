@@ -8,3 +8,7 @@ backups/
 .env*.local
 .sandbox/
 .next-test/
+
+# local dev output
+dev-server.log
+*.tsbuildinfo
