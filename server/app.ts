@@ -895,9 +895,7 @@ app.post("/api/flabs/prebookings", async (req, res) => {
   }
   const config = getFlabsConfig(parsed.data.connectionId);
   if (!config) return res.status(404).json({ ok: false, error: "Flabs account not found. Connect it in Test Catalog." });
-  if (config.party) {
-    return res.status(400).json({ ok: false, error: `Pre-bookings go to the lab account. "${config.label}" is a corporate or referral account; choose the lab account instead.` });
-  }
+  // Any account may pre-book: billing uses the account's lab login; its party only applies to leads.
   const settings = (await getStore().getPrebookingSettings(config.id)) ?? emptyPrebookingSettings(config.id);
   const settingErrors = checkAgainstSettings(parsed.data, settings);
   if (settingErrors.length) return res.status(400).json({ ok: false, error: settingErrors.join(" ") });

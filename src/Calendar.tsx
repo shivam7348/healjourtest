@@ -234,8 +234,9 @@ function ScheduleField({ disabled, onSave }: { disabled: boolean; onSave: (value
 }
 
 /** Orders & Bookings: create a booking or a pre-booking, or see the calendar. */
-export function OrdersPage() {
-  const [tab, setTab] = useState<"book" | "prebook" | "calendar" | "tracker" | "form" | "results">("book");
+export type OrdersTab = "book" | "prebook" | "calendar" | "tracker" | "form" | "results";
+export function OrdersPage({ initialTab = "book" }: { initialTab?: OrdersTab } = {}) {
+  const [tab, setTab] = useState<OrdersTab>(initialTab);
   // Tracker, settings and results have no page wrapper of their own, so the whole tab gets the standard page padding.
   // The other tabs bring their own wrapper; their tab bar is aligned to the same width and padding.
   const wrapped = tab === "tracker" || tab === "form" || tab === "results";

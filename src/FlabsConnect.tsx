@@ -180,7 +180,7 @@ export default function FlabsConnect({ onChanged }: { onChanged: () => void }) {
           <span className="trace-ms">{c.mappedTests} test mapped</span>
         </div>
         <div className="credential-actions">
-          {!c.party && <Button variant="default" size="sm" disabled={busy} onClick={() => setPrebookFor(prebookFor === c.id ? null : c.id)}><Receipt size={13} /> {prebookFor === c.id ? "Close pre-booking" : "Pre-booking"}</Button>}
+          <Button variant="default" size="sm" disabled={busy} onClick={() => setPrebookFor(prebookFor === c.id ? null : c.id)}><Receipt size={13} /> {prebookFor === c.id ? "Close pre-booking" : "Pre-booking"}</Button>
           <Button variant="outline" size="sm" disabled={busy} onClick={() => void sync(c)}><RefreshCw size={13} /> Sync</Button>
           <Button variant="outline" size="sm" disabled={busy} onClick={() => flabsTests[c.id] ? hideTests(c.id) : void viewTests(c)}>{flabsTests[c.id] ? "Hide Flabs tests" : "View Flabs tests"}</Button>
           <Button variant="outline" size="sm" disabled={busy} onClick={() => setMappingFor(mappingFor === c.id ? null : c.id)}>{mappingFor === c.id ? "Close mapping" : "Map tests"}</Button>

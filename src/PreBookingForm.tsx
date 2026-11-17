@@ -55,8 +55,9 @@ export default function PreBookingForm({ connectionId: fixedId, embedded = false
   const [error, setError] = useState("");
   const [result, setResult] = useState<Result | null>(null);
 
-  // Corporate and referral accounts are not used for pre-bookings: only lab accounts are offered.
-  const labAccounts = connections.filter(c => !c.party);
+  // Every Flabs account can create pre-bookings: billing uses the account's lab login, and the
+  // party (corporate/referral) only applies to leads. Lab accounts without a party are listed first.
+  const labAccounts = [...connections].sort((a, b) => Number(Boolean(a.party)) - Number(Boolean(b.party)));
 
   useEffect(() => {
     void (async () => {
@@ -65,7 +66,7 @@ export default function PreBookingForm({ connectionId: fixedId, embedded = false
       const data = await res.json();
       const all: Connection[] = data.connections;
       setConnections(all);
-      const labs = all.filter(c => !c.party);
+      const labs = [...all].sort((a, b) => Number(Boolean(a.party)) - Number(Boolean(b.party)));
       const def = (fixedId ? labs.find(c => c.id === fixedId) : undefined) ?? labs.find(c => c.isDefault) ?? labs[0];
       if (def) setConnectionId(def.id);
     })();
@@ -192,12 +193,6 @@ export default function PreBookingForm({ connectionId: fixedId, embedded = false
       <div className="empty-state"><b>First connect a Flabs account</b><p>Go to Test Catalog → Flabs CRM accounts and add the lab account. Then you can create pre-bookings here.</p></div>
     </div>;
   }
-  if (labAccounts.length === 0) {
-    return <div className="content">
-      <div className="empty-state"><b>No lab account connected</b><p>Pre-bookings go to the lab account only. The connected accounts are all corporate or referral accounts. Add the lab account (without a party) in Test Catalog → Flabs CRM accounts.</p></div>
-    </div>;
-  }
-
   return <div className={embedded ? "prebook-embedded flabs-theme" : "content core-page flabs-theme"}>
     {!embedded && <div className="page-heading">
       <div>
