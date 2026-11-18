@@ -1153,3 +1153,6 @@
 @media(max-width:1100px){.rz-brand{min-width:0}.rz-search{width:220px}}
 @media(max-width:860px){.rz-sections{display:none}.rz-notch{display:none}}
 @media(max-width:640px){.rz-search{display:none}.rz-topnav{gap:10px}.rz .topbar{padding:0 14px}}
+
+/* The global nav rule stacks items in a column; the top navbar sections must sit in one row */
+.rz-sections{flex-direction:row;flex-wrap:nowrap;gap:2px}
