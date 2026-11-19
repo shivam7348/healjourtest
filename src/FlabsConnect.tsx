@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/PasswordInput";
 import { useEffect, useState } from "react";
-import { CheckCircle2, KeyRound, Link2, Pencil, Plus, Receipt, RefreshCw, ShieldCheck, Star, Trash2, X } from "lucide-react";
+import { CheckCircle2, KeyRound, Link2, Pencil, Plus, Receipt, RefreshCw, ShieldCheck, Star, Trash2, X, Building2 } from "lucide-react";
+import FlabsCorporates from "./FlabsCorporates";
 import FlabsMapping from "./FlabsMapping";
 import PreBookingForm from "./PreBookingForm";
 
@@ -52,6 +53,7 @@ export default function FlabsConnect({ onChanged }: { onChanged: () => void }) {
   const [reports, setReports] = useState<Record<string, SyncReport>>({});
   const [mappingFor, setMappingFor] = useState<string | null>(null);
   const [prebookFor, setPrebookFor] = useState<string | null>(null);
+  const [corpFor, setCorpFor] = useState<string | null>(null);
   const [flabsTests, setFlabsTests] = useState<Record<string, { rows?: FlabsTest[]; error?: string; party?: string | null; filter: string }>>({});
 
   const viewTests = (c: Connection) => run(async () => {
@@ -181,6 +183,7 @@ export default function FlabsConnect({ onChanged }: { onChanged: () => void }) {
         </div>
         <div className="credential-actions">
           <Button variant="default" size="sm" disabled={busy} onClick={() => setPrebookFor(prebookFor === c.id ? null : c.id)}><Receipt size={13} /> {prebookFor === c.id ? "Close pre-booking" : "Pre-booking"}</Button>
+          <Button variant="outline" size="sm" disabled={busy} onClick={() => setCorpFor(corpFor === c.id ? null : c.id)}><Building2 size={13} /> {corpFor === c.id ? "Close corporates" : "Corporates"}</Button>
           <Button variant="outline" size="sm" disabled={busy} onClick={() => void sync(c)}><RefreshCw size={13} /> Sync</Button>
           <Button variant="outline" size="sm" disabled={busy} onClick={() => flabsTests[c.id] ? hideTests(c.id) : void viewTests(c)}>{flabsTests[c.id] ? "Hide Flabs tests" : "View Flabs tests"}</Button>
           <Button variant="outline" size="sm" disabled={busy} onClick={() => setMappingFor(mappingFor === c.id ? null : c.id)}>{mappingFor === c.id ? "Close mapping" : "Map tests"}</Button>
@@ -190,6 +193,7 @@ export default function FlabsConnect({ onChanged }: { onChanged: () => void }) {
           <Button variant="destructive" size="sm" className="account-delete" disabled={busy} onClick={() => remove(c)}><Trash2 size={13} /> Delete</Button>
         </div>
         {prebookFor === c.id && <PreBookingForm connectionId={c.id} embedded />}
+        {corpFor === c.id && <FlabsCorporates connectionId={c.id} />}
         {mappingFor === c.id && <FlabsMapping connectionId={c.id} label={c.label} onChanged={() => void load()} onClose={() => setMappingFor(null)} />}
         {flabsTests[c.id] && <div className="flabs-tests">
           {flabsTests[c.id].error && (/only with a corporate/.test(flabsTests[c.id].error!)

@@ -13,6 +13,7 @@ import TestBuilder from "./TestBuilder";
 import { NotificationBell } from "./portal/NotificationBell";
 import ConnectorFramework from "./ConnectorFramework";
 import IntegrationHub from "./hub/IntegrationHub";
+import CorporateMapping from "./CorporateMapping";
 import { AdminLabCases, AdminLabsUsers } from "./portal/AdminPortal";
 import type { PortalUser } from "./portal/api";
 import { OrdersPage } from "./Calendar";
@@ -172,6 +173,7 @@ function App({ user, onLogout, onChangePassword }: AppProps) {
       { label: "Labs & Users", icon: Building2 },
       { label: "Organizations", icon: FlaskConical },
       { label: "Test Catalog", icon: FileSpreadsheet },
+      { label: "Corporate Mapping", icon: Building2 },
       { label: "Test Builder", icon: Wand2 }
     ] },
     { id: "orders", label: "Orders", group: "ORDERS & DATA", items: [
@@ -356,7 +358,7 @@ function App({ user, onLogout, onChangePassword }: AppProps) {
           <div className="breadcrumbs"><SidebarTrigger /> {activeSection ? activeSection.label : "Home"} <span>/</span> <b>{activeNav === "Overview" ? "Home" : activeNav}</b></div>
         </header>
 
-        {activeNav === "Overview" ? <OverviewPage /> : activeNav === "Monitoring & SLA" ? <MonitoringPage /> : activeNav === "API & Webhooks" ? <ApiPage /> : activeNav === "Settings" ? <SettingsPage /> : activeNav === "Connector Marketplace" ? <MarketplacePage /> : activeNav === "Organizations" ? <OrganizationsPage /> : activeNav === "Integrations" ? <IntegrationsPage /> : activeNav === "Connector Framework" ? <ConnectorFramework /> : activeNav === "Integration Hub" ? <IntegrationHub /> : activeNav === "Core Layers" ? <CoreLayers /> : activeNav === "Test Catalog" ? <TestCatalog /> : activeNav === "Test Builder" ? <TestBuilder /> : activeNav === "Lab Cases" ? <AdminLabCases /> : activeNav === "Labs & Users" ? <AdminLabsUsers me={user} /> : activeNav === "Orders & Bookings" ? <OrdersPage key="book" /> : activeNav === "Booking Tracker" ? <OrdersPage key="tracker" initialTab="tracker" /> : activeNav === "Results & Smart Reports" ? <OrdersPage key="results" initialTab="results" /> : activeNav === "Booking Calendar" ? <OrdersPage key="calendar" initialTab="calendar" /> : activeNav === "Transactions & Logs" ? <IntegrationLogs /> : activeNav === "Partner Access" ? <PartnerAccess /> : isWizard ? <div className="content">
+        {activeNav === "Overview" ? <OverviewPage /> : activeNav === "Monitoring & SLA" ? <MonitoringPage /> : activeNav === "API & Webhooks" ? <ApiPage /> : activeNav === "Settings" ? <SettingsPage /> : activeNav === "Connector Marketplace" ? <MarketplacePage /> : activeNav === "Organizations" ? <OrganizationsPage /> : activeNav === "Integrations" ? <IntegrationsPage /> : activeNav === "Connector Framework" ? <ConnectorFramework /> : activeNav === "Integration Hub" ? <IntegrationHub /> : activeNav === "Core Layers" ? <CoreLayers /> : activeNav === "Test Catalog" ? <TestCatalog /> : activeNav === "Corporate Mapping" ? <CorporateMapping /> : activeNav === "Test Builder" ? <TestBuilder /> : activeNav === "Lab Cases" ? <AdminLabCases /> : activeNav === "Labs & Users" ? <AdminLabsUsers me={user} /> : activeNav === "Orders & Bookings" ? <OrdersPage key="book" /> : activeNav === "Booking Tracker" ? <OrdersPage key="tracker" initialTab="tracker" /> : activeNav === "Results & Smart Reports" ? <OrdersPage key="results" initialTab="results" /> : activeNav === "Booking Calendar" ? <OrdersPage key="calendar" initialTab="calendar" /> : activeNav === "Transactions & Logs" ? <IntegrationLogs /> : activeNav === "Partner Access" ? <PartnerAccess /> : isWizard ? <div className="content">
           <div className="page-heading">
             <div><div className="eyebrow">INTEGRATION CONFIGURATION</div><h1>Create integration</h1><p>Set up how Healjour and a lab exchange CSV files, one simple step at a time.</p></div>
             <div className="heading-actions"><Button variant="outline" onClick={() => {setStep(0); setNotice("Wizard reset to step 1.");}}> <RefreshCw size={16}/> Reset wizard</Button><Button variant="default" onClick={saveDraft}><Save size={16}/> Save draft</Button></div>

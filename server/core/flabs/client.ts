@@ -116,8 +116,9 @@ function catalogError(status: number, body: any) {
   return new FlabsError(status, PARTY_REQUIRED_PATTERN.test(String(message)) ? PARTY_REQUIRED_HINT : message);
 }
 
-export async function listTests(config: FlabsConfig, branchID: string) {
-  const { status, body } = await authed(config, `/client/crm/tests?branchID=${encodeURIComponent(branchID)}${partyQuery(config.party)}`);
+/** Tests with prices for this account's party, or for another party (e.g. one corporate) when given. */
+export async function listTests(config: FlabsConfig, branchID: string, partyOverride?: FlabsParty) {
+  const { status, body } = await authed(config, `/client/crm/tests?branchID=${encodeURIComponent(branchID)}${partyQuery(partyOverride ?? config.party)}`);
   if (status !== 200) throw catalogError(status, body);
   return (body.tests ?? []) as Array<{ _id: string; name: string; code: string; cost: number }>;
 }
@@ -126,6 +127,13 @@ export async function listPackages(config: FlabsConfig, branchID: string) {
   const { status, body } = await authed(config, `/client/crm/packages?branchID=${encodeURIComponent(branchID)}${partyQuery(config.party)}`);
   if (status !== 200) throw catalogError(status, body);
   return (body.packages ?? []) as Array<{ _id: string; name: string; code: string; total: number }>;
+}
+
+/** Active corporates of a branch (GET /client/crm/corporates). Each _id is sent as corporateUser. */
+export async function listCorporates(config: FlabsConfig, branchID: string) {
+  const { status, body } = await authed(config, `/client/crm/corporates?branchID=${encodeURIComponent(branchID)}`);
+  if (status !== 200) throw new FlabsError(status, describeFlabsError(status, body));
+  return ((body.corporates ?? []) as Array<{ _id: string; name: string }>).map(c => ({ id: String(c._id), name: String(c.name ?? "") }));
 }
 
 /**

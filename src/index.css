@@ -1156,3 +1156,37 @@
 
 /* The global nav rule stacks items in a column; the top navbar sections must sit in one row */
 .rz-sections{flex-direction:row;flex-wrap:nowrap;gap:2px}
+
+/* Flabs corporates panel */
+.corp-panel{margin-top:12px;border:1px solid #dbe6ff;background:#f8fbff;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.corp-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.corp-head b{font-size:14px;color:#0f172a}
+.corp-head small{display:block;font-size:12px;color:#64748b;margin-top:2px;max-width:640px}
+.corp-map-head{border-top:1px solid #e3e9f2;padding-top:12px;margin-top:4px}
+.corp-actions{display:flex;gap:6px;flex-wrap:wrap}
+.corp-search{display:flex;align-items:center;gap:8px;border:1px solid #d7dfeb;border-radius:8px;padding:0 10px;background:#fff;color:#8a96a7;min-width:220px}
+.corp-search input{flex:1;border:0;outline:none;padding:7px 0;font:inherit;font-size:13px;background:transparent}
+.corp-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:280px;overflow:auto}
+.corp-list li{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e3e9f2;border-radius:9px;padding:8px 10px}
+.corp-list li>span:first-child{flex:1;min-width:0}
+.corp-list b{display:block;font-size:13.5px;color:#0f172a}
+.corp-list code{font-size:11.5px;color:#64748b;word-break:break-all}
+.corp-pill{font-size:11px;font-weight:700;color:#166534;background:#dcfce7;border-radius:999px;padding:2px 8px}
+.corp-icon{border:1px solid #d7dfeb;background:#fff;border-radius:7px;padding:5px 7px;cursor:pointer;color:#475569;display:inline-grid;place-items:center}
+.corp-icon.danger{color:#b91c1c;border-color:#fecaca}
+.corp-empty{margin:0;font-size:13px;color:#64748b}
+.corp-prices{border:1px solid #e3e9f2;background:#fff;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.corp-table-wrap{overflow-x:auto;max-height:340px;overflow-y:auto;border:1px solid #e3e9f2;border-radius:9px;background:#fff}
+.corp-table{width:100%;border-collapse:collapse;min-width:520px}
+.corp-table th{position:sticky;top:0;text-align:left;font-size:11.5px;color:#8a96a7;padding:8px 10px;background:#f8fafd;border-bottom:1px solid #e7ecf3}
+.corp-table td{padding:6px 10px;border-bottom:1px solid #f1f4f8;font-size:13px}
+.corp-table input,.corp-table select{width:100%;min-width:140px;border:1px solid #d7dfeb;border-radius:7px;padding:6px 8px;font:inherit;font-size:13px;background:#fff}
+
+/* Corporate mapping across Flabs accounts */
+.cm-accounts{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin-bottom:14px}
+.cm-accounts>div{background:#fff;border:1px solid #e3e9f2;border-radius:10px;padding:10px 12px}
+.cm-accounts>div.bad{border-color:#fecaca;background:#fff7f7}
+.cm-accounts b{display:block;font-size:13.5px;color:#0f172a}
+.cm-accounts small{display:block;font-size:12px;color:#64748b;margin-top:3px}
+.cm-wrap{max-height:none;margin:10px 0}
+.cm-table th:first-child,.cm-table td:first-child{position:sticky;left:0;background:#fff;z-index:1}

@@ -130,8 +130,11 @@ export function buildBookingPayload(
   }
 
   // A connection with its own party overrides whatever the form says; otherwise the form's party is used.
+  // A corporate is separate from a referring doctor/hospital, so it can still be chosen on such an account.
   if (!config.party) {
     for (const field of PARTY_FIELDS) copy(field, (input as Record<string, unknown>)[field]);
+  } else if (config.party.field !== "corporateUser") {
+    copy("corporateUser", input.corporateUser);
   }
 
   const payload: CreateLeadPayload = {

@@ -9,7 +9,7 @@ import { listDeadLetters, listRuns, replayDeadLetter, sinkCatalog } from "./core
 import { coreTopology, runPipeline, samplePayloads } from "./core/pipeline.js";
 import { connectStore, getStore } from "./core/store.js";
 import type { PartnerLab, StudioIntegration } from "./core/models.js";
-import { deleteWebhook, listPackages, listTests, listWebhooks, PARTY_REQUIRED_HINT, subscribeWebhook, testFlabsConnection } from "./core/flabs/client.js";
+import { deleteWebhook, listPackages, listTests, listCorporates, listWebhooks, PARTY_REQUIRED_HINT, subscribeWebhook, testFlabsConnection } from "./core/flabs/client.js";
 import { FLABS_EVENTS, handleFlabsEvent, saveResultRecord, type FlabsEvent, type FlabsResultRecord } from "./core/flabs/webhooks.js";
 import { buildSmartReport, renderSmartReportHtml, type ParameterRange } from "./core/flabs/smartReport.js";
 import { refreshRecordRanges } from "./core/flabs/reportRanges.js";
@@ -731,12 +731,69 @@ app.get("/api/flabs/connections/:id/tests", async (req, res) => {
   const config = getFlabsConfig(req.params.id);
   if (!config) return res.status(404).json({ error: "Connection not found." });
   if (!config.branchId) return res.status(400).json({ error: "This account has no branch set." });
+  // ?corporateUser=<Flabs corporate id> shows that corporate's prices instead of the account's own.
+  const corporate = typeof req.query.corporateUser === "string" && req.query.corporateUser.trim() ? { field: "corporateUser" as const, id: req.query.corporateUser.trim() } : undefined;
   try {
-    const tests = await listTests(config, config.branchId);
-    res.json({ branchId: config.branchId, party: config.party ?? null, count: tests.length, tests });
+    const tests = await listTests(config, config.branchId, corporate);
+    res.json({ branchId: config.branchId, party: corporate ?? config.party ?? null, count: tests.length, tests });
   } catch (error) {
     res.status(502).json({ error: error instanceof Error ? error.message : "Flabs did not return tests." });
   }
+});
+
+// ---------- Flabs corporates: list and map Healjour corporate clients to Flabs corporates ----------
+type CorporateMapping = { id: string; connectionId: string; healjourName: string; healjourCode?: string; flabsId: string; flabsName: string; updatedAt: string };
+const CORP_MAPS = "flabsCorporateMappings";
+const corpSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
+
+app.get("/api/flabs/connections/:id/corporates", async (req, res) => {
+  const config = getFlabsConfig(req.params.id);
+  if (!config) return res.status(404).json({ error: "Connection not found." });
+  const mappings = (await getStore().docList<CorporateMapping>(CORP_MAPS, { connectionId: config.id })).sort((a, b) => a.healjourName.localeCompare(b.healjourName));
+  if (!config.branchId) return res.json({ branchId: null, corporates: [], mappings, error: "This account has no branch set, so Flabs corporates cannot be listed." });
+  try {
+    const corporates = (await listCorporates(config, config.branchId)).sort((a, b) => a.name.localeCompare(b.name));
+    res.json({ branchId: config.branchId, corporates, mappings, fetchedAt: new Date().toISOString() });
+  } catch (error) {
+    res.json({ branchId: config.branchId, corporates: [], mappings, error: error instanceof Error ? error.message : "Flabs did not return corporates." });
+  }
+});
+
+app.put("/api/flabs/connections/:id/corporate-mappings", async (req, res) => {
+  const config = getFlabsConfig(req.params.id);
+  if (!config) return res.status(404).json({ error: "Connection not found." });
+  const parsed = z.object({
+    mappings: z.array(z.object({
+      healjourName: z.string().trim().min(2).max(120),
+      healjourCode: z.string().trim().max(40).optional(),
+      flabsId: z.string().trim().min(3).max(64),
+      flabsName: z.string().trim().max(160).optional()
+    })).max(500)
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join(" ") });
+  const keys = parsed.data.mappings.map(m => corpSlug(m.healjourCode || m.healjourName));
+  if (new Set(keys).size !== keys.length) return res.status(400).json({ error: "Each Healjour corporate can be mapped only once." });
+  // Names come from Flabs when it answers, so a mapping always shows the corporate's current name.
+  let flabsNames = new Map<string, string>();
+  if (config.branchId) {
+    try { flabsNames = new Map((await listCorporates(config, config.branchId)).map(c => [c.id, c.name])); } catch { /* keep the names sent */ }
+  }
+  const unknown = flabsNames.size ? parsed.data.mappings.filter(m => !flabsNames.has(m.flabsId)) : [];
+  if (unknown.length) return res.status(400).json({ error: `Not an active Flabs corporate in this branch: ${unknown.map(u => u.flabsId).join(", ")}.` });
+  const now = new Date().toISOString();
+  await getStore().docDeleteWhere(CORP_MAPS, { connectionId: config.id });
+  const saved: CorporateMapping[] = [];
+  for (const m of parsed.data.mappings) {
+    const doc: CorporateMapping = {
+      id: `${config.id}:${corpSlug(m.healjourCode || m.healjourName)}`, connectionId: config.id,
+      healjourName: m.healjourName, ...(m.healjourCode ? { healjourCode: m.healjourCode } : {}),
+      flabsId: m.flabsId, flabsName: flabsNames.get(m.flabsId) ?? m.flabsName ?? "", updatedAt: now
+    };
+    await getStore().docPut(CORP_MAPS, doc);
+    saved.push(doc);
+  }
+  await logIntegration({ type: "sync", status: "info", account: config.label, title: "Corporate mapping saved", message: `${saved.length} Healjour corporate(s) mapped to Flabs corporates.` });
+  res.json({ ok: true, mappings: saved });
 });
 
 app.post("/api/flabs/connections/:id/sync", async (req, res) => {
@@ -789,6 +846,11 @@ app.post("/api/flabs/bookings", async (req, res) => {
   }
   const config = getFlabsConfig(parsed.data.connectionId);
   if (!config) return res.status(404).json({ ok: false, error: "Flabs account not found. Connect it in Test Catalog." });
+  // Only corporates mapped for this account (Labs → Corporate Mapping) can be sent.
+  if (parsed.data.corporateUser && config.party?.field !== "corporateUser") {
+    const mapped = (await getStore().docList<CorporateMapping>(CORP_MAPS, { connectionId: config.id })).some(m => m.flabsId === parsed.data.corporateUser);
+    if (!mapped) return res.status(400).json({ ok: false, error: "This corporate is not mapped for this Flabs account. Map it in Labs → Corporate Mapping first." });
+  }
   try {
     const result = await sendBooking(config, parsed.data);
     // Every booking becomes a calendar entry: scheduled if it has a time, otherwise waiting to be scheduled.

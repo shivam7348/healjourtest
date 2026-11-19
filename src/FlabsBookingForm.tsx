@@ -4,6 +4,7 @@ import { CheckCircle2, Send, X } from "lucide-react";
 import DateTimeField from "./DateTimeField";
 import { MapEditor, type FlabsCatalog, type MapItem } from "./PreBookingForm";
 import { DEFAULT_FIELDS, normalizeFields, type FieldConfig } from "./bookingFields";
+import { fetchCorporates, type CorporateMapping, type FlabsCorporate } from "./FlabsCorporates";
 
 type Connection = { id: string; label: string; branchId: string | null; phase: "lead" | "booking"; party: { field: string; id: string } | null; isDefault: boolean };
 type Option = { code: string; name: string; price: number; mapped: boolean; flabsCost?: number | null };
@@ -17,7 +18,6 @@ type Result = {
 
 const PARTY_FIELDS = [
   { value: "", label: "None" },
-  { value: "corporateUser", label: "Corporate (corporateUser)" },
   { value: "referredOrganization", label: "Referring doctor (referredOrganization)" },
   { value: "referredHospitalOrganization", label: "Referring hospital (referredHospitalOrganization)" }
 ];
@@ -33,7 +33,7 @@ export default function FlabsBookingForm() {
     aadhaar_number: "", insurance_number: "", uhid: "", passport_number: "",
     owner_name: "", breed: "", category: "",
     integratorID: "", phase: "", source: "healjour", priority: "medium",
-    partyField: "", partyId: "",
+    partyField: "", partyId: "", corporateUser: "",
     discountAmount: "0", totalAmount: "",
     bookingType: "", scheduledAt: "", specialInstructions: "", paymentStatus: "Pending", paymentMode: "",
     customFields: ""
@@ -48,6 +48,14 @@ export default function FlabsBookingForm() {
   const [error, setError] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [toastOpen, setToastOpen] = useState(false);
+  // Flabs corporates of the chosen account, for the "Corporate" party (sent as corporateUser).
+  const [corp, setCorp] = useState<{ corporates: FlabsCorporate[]; mappings: CorporateMapping[]; error?: string } | null>(null);
+  useEffect(() => {
+    setCorp(null);
+    setF(prev => ({ ...prev, corporateUser: "" }));
+    if (!connectionId) return;
+    void fetchCorporates(connectionId).then(d => setCorp({ corporates: d.corporates, mappings: d.mappings, error: d.error })).catch(e => setCorp({ corporates: [], mappings: [], error: e instanceof Error ? e.message : "Could not load corporates." }));
+  }, [connectionId]);
   // A successful booking shows a notification at the top of the screen for a few seconds.
   useEffect(() => {
     if (!result?.ok) return;
@@ -126,6 +134,7 @@ export default function FlabsBookingForm() {
         source: f.source || undefined,
         priority: f.priority || undefined,
         ...(!partyLocked && f.partyField && f.partyId ? { [f.partyField]: f.partyId } : {}),
+        ...(f.corporateUser && connection?.party?.field !== "corporateUser" ? { corporateUser: f.corporateUser } : {}),
         tests: testCodes.map(code => ({ code })),
         packages: packageCodes.map(code => ({ code })),
         unmappedTests: unmappedTests.filter(r => r.name).map(r => ({ name: r.name, cost: Number(r.amount) || 0 })),
@@ -263,8 +272,17 @@ export default function FlabsBookingForm() {
               <select value={f.priority} onChange={set("priority")}><option value="urgent">Urgent</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
             </label>
             <label className="field"><span>Source</span><input value={f.source} onChange={set("source")} placeholder="facebook_ads / website / healjour" /></label>
+            {connection?.party?.field !== "corporateUser" && <label className="field"><span>Corporate client</span>
+              {corp && corp.mappings.length > 0
+                ? <select value={f.corporateUser} onChange={set("corporateUser")}>
+                    <option value="">None (no corporate)</option>
+                    {corp.mappings.map(m => <option key={m.flabsId + m.healjourName} value={m.flabsId}>{m.healjourName}{m.healjourCode ? ` (${m.healjourCode})` : ""}</option>)}
+                  </select>
+                : <select disabled value=""><option value="">{corp ? "No corporate mapped for this account" : "Loading corporates…"}</option></select>}
+              <small>{corp && corp.mappings.length === 0 ? "Map corporates in Labs → Corporate Mapping to choose one here." : f.corporateUser ? `Flabs corporate: ${corp?.mappings.find(m => m.flabsId === f.corporateUser)?.flabsName ?? f.corporateUser}` : "Only corporates mapped for this Flabs account are listed."}</small>
+            </label>}
             {!partyLocked && <>
-              <label className="field"><span>Party (corporate / referral)</span>
+              <label className="field"><span>Referring doctor / hospital</span>
                 <select value={f.partyField} onChange={set("partyField")}>{PARTY_FIELDS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}</select>
               </label>
               {f.partyField && <label className="field"><span>Party ID *</span><input value={f.partyId} onChange={set("partyId")} /></label>}
