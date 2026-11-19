@@ -1,9 +1,9 @@
 // Small fetch helpers for the Lab Portal. Session cookie is sent automatically (same origin).
 
 export type Role = "healjour_admin" | "lab_admin" | "lab_staff" | "lab_viewer";
-export type PortalUser = { id: string; email: string; name: string; role: Role; labId: string | null; active: boolean; mustChangePassword: boolean; lastLoginAt?: string; createdAt: string };
+export type PortalUser = { id: string; email: string; name: string; role: Role; labId: string | null; active: boolean; mustChangePassword: boolean; lastLoginAt?: string; createdAt: string; isSuperAdmin?: boolean; adminRoleId?: string };
 export type PortalLab = { id: string; code: string; name: string; city?: string; contactEmail?: string; active: boolean; users?: number; openCases?: number; unseen?: number };
-export type AuthState = { setupNeeded: boolean; setupKeyRequired: boolean; user: PortalUser | null; lab: PortalLab | null; permissions: string[] };
+export type AuthState = { setupNeeded: boolean; setupKeyRequired: boolean; user: PortalUser | null; lab: PortalLab | null; permissions: string[]; modules?: string[]; adminPermissions?: string[]; superAdmin?: boolean };
 
 export type CaseStatus = "new" | "accepted" | "sample_collected" | "processing" | "report_ready" | "completed" | "rejected" | "cancelled";
 export type CaseSummary = {

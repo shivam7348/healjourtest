@@ -2,6 +2,7 @@
 // Labs update status, enter results and upload reports; every change lands in Healjour's logs and audit.
 // Lab users only ever see their own lab's data: every query below is scoped by the signed-in user's labId.
 
+import { allowedModules, allowedPermissions, ensureSuperAdmin, getSystemSettings, isSuperAdmin } from "./core/portal/access.js";
 import type express from "express";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
@@ -103,6 +104,7 @@ export function registerPortalRoutes(app: express.Express) {
   // ---------- sign-in ----------
 
   app.get("/api/auth/state", async (req, res) => {
+    await ensureSuperAdmin();
     const user = await currentUser(req);
     const lab = user?.labId ? await getStore().docGet<PortalLab>(LABS, user.labId) : null;
     res.json({
@@ -110,7 +112,10 @@ export function registerPortalRoutes(app: express.Express) {
       setupKeyRequired: Boolean(process.env.PORTAL_SETUP_KEY?.trim()),
       user: user ? publicUser(user) : null,
       lab: lab ?? null,
-      permissions: user ? Object.keys(PERMISSIONS).filter(p => can(user.role, p as keyof typeof PERMISSIONS)) : []
+      permissions: user ? Object.keys(PERMISSIONS).filter(p => can(user.role, p as keyof typeof PERMISSIONS)) : [],
+      modules: user ? await allowedModules(user) : [],
+      adminPermissions: user?.role === "healjour_admin" ? await allowedPermissions(user) : [],
+      superAdmin: isSuperAdmin(user)
     });
   });
 
@@ -129,7 +134,7 @@ export function registerPortalRoutes(app: express.Express) {
     const user: PortalUser = {
       id: newId("usr"), email: parsed.data.email, name: parsed.data.name, role: "healjour_admin", labId: null,
       active: true, passwordHash: hashPassword(parsed.data.password), mustChangePassword: false,
-      createdAt: new Date().toISOString(), createdBy: null
+      createdAt: new Date().toISOString(), createdBy: null, isSuperAdmin: true   // the first admin controls everything
     };
     await getStore().docPut(USERS, user);
     await recordAudit({ actor: `healjour_admin:${user.email}`, action: "lab_portal.setup", detail: "First Healjour admin created." });
@@ -141,7 +146,7 @@ export function registerPortalRoutes(app: express.Express) {
   app.post("/api/auth/login", async (req, res) => {
     const parsed = z.object({
       email: z.string().trim().toLowerCase().email(), password: z.string().min(1).max(200),
-      area: z.enum(["admin", "lab"]).optional() // which sign-in page was used
+      area: z.enum(["admin", "lab", "super"]).optional() // which sign-in page was used
     }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Enter your email and password." });
     const key = `${parsed.data.email}|${req.ip}`;
@@ -157,6 +162,9 @@ export function registerPortalRoutes(app: express.Express) {
     // Admins sign in at /admin, labs at the main address. Checked after the password, so it reveals nothing to a guesser.
     if (parsed.data.area === "admin" && user.role !== "healjour_admin") return res.status(403).json({ error: "This is the Healjour admin sign-in. Lab users sign in on the main Lab Portal page." });
     if (parsed.data.area === "lab" && user.role === "healjour_admin") return res.status(403).json({ error: "Healjour admins sign in at /admin." });
+    if (parsed.data.area === "super" && !isSuperAdmin(user)) return res.status(403).json({ error: "This sign-in is only for Super Admins. Admins sign in at /admin." });
+    const system = await getSystemSettings();
+    if (system.maintenance && !isSuperAdmin(user)) return res.status(503).json({ error: system.maintenanceMessage });
     if (user.labId) {
       const lab = await getStore().docGet<PortalLab>(LABS, user.labId);
       if (!lab?.active) return res.status(403).json({ error: "This lab's access is paused. Contact Healjour." });
@@ -242,8 +250,9 @@ export function registerPortalRoutes(app: express.Express) {
 
   // ---------- team (Healjour admin: anyone; lab admin: own lab's staff and viewers) ----------
 
+  // Healjour admins manage lab users; only a Super Admin manages Healjour admins.
   const mayManage = (actor: PortalUser, target: { role: Role; labId: string | null }) =>
-    actor.role === "healjour_admin" ||
+    (actor.role === "healjour_admin" && (target.role !== "healjour_admin" || isSuperAdmin(actor))) ||
     (actor.role === "lab_admin" && target.labId === actor.labId && (target.role === "lab_staff" || target.role === "lab_viewer"));
 
   app.get("/api/portal/users", requirePermission("team:manage"), async (req, res) => {

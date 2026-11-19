@@ -137,9 +137,9 @@ function PartnerAccess() {
   </div>;
 }
 
-type AppProps = { user: PortalUser; onLogout: () => void; onChangePassword: () => void };
+type AppProps = { user: PortalUser; modules?: string[]; superAdmin?: boolean; onLogout: () => void; onChangePassword: () => void };
 
-function App({ user, onLogout, onChangePassword }: AppProps) {
+function App({ user, modules = [], superAdmin = false, onLogout, onChangePassword }: AppProps) {
   const [activeNav, setActiveNav] = useState("Integration Studio");
   const [step, setStep] = useState<Step>(0);
   const [name, setName] = useState("Noida Lab — CSV Connector");
@@ -159,7 +159,7 @@ function App({ user, onLogout, onChangePassword }: AppProps) {
   const [mappingTab, setMappingTab] = useState<"outbound" | "inbound">("outbound");
 
   // Top navbar sections; the sidebar lists the pages of the active section.
-  const sections = [
+  const allSections = [
     { id: "integrations", label: "Integrations", group: "INTEGRATION PRODUCTS", items: [
       { label: "Integration Hub", icon: Network },
       { label: "Connector Framework", icon: Cable },
@@ -189,7 +189,21 @@ function App({ user, onLogout, onChangePassword }: AppProps) {
       { label: "Monitoring & SLA", icon: Gauge }
     ] }
   ];
-  const navItems = [{ label: "Overview", icon: LayoutDashboard }, ...sections.flatMap(s => s.items), { label: "Settings", icon: Settings2 }];
+  // Each page belongs to a module; an admin sees only the modules their role allows (the server enforces the same).
+  const NAV_MODULE: Record<string, string> = {
+    "Integration Hub": "integrations", "Connector Framework": "integrations", "Integrations": "integrations", "Integration Studio": "integrations",
+    "Connector Marketplace": "integrations", "Core Layers": "integrations",
+    "Lab Cases": "labs", "Labs & Users": "labs", "Organizations": "labs",
+    "Test Catalog": "catalog", "Corporate Mapping": "catalog", "Test Builder": "catalog",
+    "Orders & Bookings": "orders", "Booking Tracker": "orders", "Results & Smart Reports": "orders", "Booking Calendar": "orders",
+    "Transactions & Logs": "logs", "API & Webhooks": "developers", "Partner Access": "developers", "Monitoring & SLA": "developers",
+    "Settings": "settings"
+  };
+  const canSee = (label: string) => label === "Overview" || !NAV_MODULE[label] || superAdmin || modules.includes(NAV_MODULE[label]);
+  const sections = allSections.map(s => ({ ...s, items: s.items.filter(i => canSee(i.label)) })).filter(s => s.items.length > 0);
+  const navItems = [{ label: "Overview", icon: LayoutDashboard }, ...sections.flatMap(s => s.items), ...(canSee("Settings") ? [{ label: "Settings", icon: Settings2 }] : [])];
+  // A page the role does not allow is never shown: fall back to Home.
+  useEffect(() => { if (!canSee(activeNav)) setActiveNav("Overview"); }, [activeNav, modules.join(","), superAdmin]);
   const activeSection = sections.find(s => s.items.some(i => i.label === activeNav)) ?? null;
   const [sectionId, setSectionId] = useState<string>(() => "integrations");
   useEffect(() => { if (activeSection) setSectionId(activeSection.id); }, [activeSection?.id]);
@@ -304,6 +318,7 @@ function App({ user, onLogout, onChangePassword }: AppProps) {
           {matches.length > 0 && <ul className="rz-search-results">{matches.map(m => { const Icon = m.icon; return <li key={m.label}><button type="button" onClick={() => { go(m.label); setSearch(""); }}><Icon size={14} /> {m.label}</button></li>; })}</ul>}
         </div>
         <div className="rz-actions">
+          {superAdmin && <a className="rz-super-link" href="/superadmin" title="Open the Super Admin console"><ShieldCheck size={15} /> Super Admin</a>}
           <NotificationBell />
           <button type="button" className="rz-icon" aria-label="Help" title="Help"><CircleHelp size={17} /></button>
           <div className="rz-avatar" title={user.name}>{user.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase()}</div>
@@ -343,10 +358,10 @@ function App({ user, onLogout, onChangePassword }: AppProps) {
           <div className="rz-env-row"><ShieldCheck size={16}/><span>Sandbox environment</span><span className="rz-env-badge">ON</span></div>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton isActive={activeNav === "Settings"} tooltip="Account & Settings" onClick={() => go("Settings")}><Settings2 size={17}/><span>Account &amp; Settings</span></SidebarMenuButton>
+              {canSee("Settings") && <SidebarMenuButton isActive={activeNav === "Settings"} tooltip="Account & Settings" onClick={() => go("Settings")}><Settings2 size={17}/><span>Account &amp; Settings</span></SidebarMenuButton>}
             </SidebarMenuItem>
           </SidebarMenu>
-          <div className="user-profile"><div className="user-avatar">{user.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase()}</div><div><b>{user.name}</b><small>Healjour admin</small></div>
+          <div className="user-profile"><div className="user-avatar">{user.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase()}</div><div><b>{user.name}</b><small>{superAdmin ? "Super Admin" : "Healjour admin"}</small></div>
             <Button variant="ghost" className="h-auto icon-button" aria-label="Change password" title="Change password" onClick={onChangePassword}><KeyRound size={15}/></Button>
             <Button variant="ghost" className="h-auto icon-button" aria-label="Sign out" title="Sign out" onClick={onLogout}><LogOut size={15}/></Button></div>
         </SidebarFooter>
@@ -358,7 +373,7 @@ function App({ user, onLogout, onChangePassword }: AppProps) {
           <div className="breadcrumbs"><SidebarTrigger /> {activeSection ? activeSection.label : "Home"} <span>/</span> <b>{activeNav === "Overview" ? "Home" : activeNav}</b></div>
         </header>
 
-        {activeNav === "Overview" ? <OverviewPage /> : activeNav === "Monitoring & SLA" ? <MonitoringPage /> : activeNav === "API & Webhooks" ? <ApiPage /> : activeNav === "Settings" ? <SettingsPage /> : activeNav === "Connector Marketplace" ? <MarketplacePage /> : activeNav === "Organizations" ? <OrganizationsPage /> : activeNav === "Integrations" ? <IntegrationsPage /> : activeNav === "Connector Framework" ? <ConnectorFramework /> : activeNav === "Integration Hub" ? <IntegrationHub /> : activeNav === "Core Layers" ? <CoreLayers /> : activeNav === "Test Catalog" ? <TestCatalog /> : activeNav === "Corporate Mapping" ? <CorporateMapping /> : activeNav === "Test Builder" ? <TestBuilder /> : activeNav === "Lab Cases" ? <AdminLabCases /> : activeNav === "Labs & Users" ? <AdminLabsUsers me={user} /> : activeNav === "Orders & Bookings" ? <OrdersPage key="book" /> : activeNav === "Booking Tracker" ? <OrdersPage key="tracker" initialTab="tracker" /> : activeNav === "Results & Smart Reports" ? <OrdersPage key="results" initialTab="results" /> : activeNav === "Booking Calendar" ? <OrdersPage key="calendar" initialTab="calendar" /> : activeNav === "Transactions & Logs" ? <IntegrationLogs /> : activeNav === "Partner Access" ? <PartnerAccess /> : isWizard ? <div className="content">
+        {activeNav === "Overview" ? <OverviewPage /> :  activeNav === "Monitoring & SLA" ? <MonitoringPage /> : activeNav === "API & Webhooks" ? <ApiPage /> : activeNav === "Settings" ? <SettingsPage /> : activeNav === "Connector Marketplace" ? <MarketplacePage /> : activeNav === "Organizations" ? <OrganizationsPage /> : activeNav === "Integrations" ? <IntegrationsPage /> : activeNav === "Connector Framework" ? <ConnectorFramework /> : activeNav === "Integration Hub" ? <IntegrationHub /> : activeNav === "Core Layers" ? <CoreLayers /> : activeNav === "Test Catalog" ? <TestCatalog /> : activeNav === "Corporate Mapping" ? <CorporateMapping /> : activeNav === "Test Builder" ? <TestBuilder /> : activeNav === "Lab Cases" ? <AdminLabCases /> : activeNav === "Labs & Users" ? <AdminLabsUsers me={user} /> : activeNav === "Orders & Bookings" ? <OrdersPage key="book" /> : activeNav === "Booking Tracker" ? <OrdersPage key="tracker" initialTab="tracker" /> : activeNav === "Results & Smart Reports" ? <OrdersPage key="results" initialTab="results" /> : activeNav === "Booking Calendar" ? <OrdersPage key="calendar" initialTab="calendar" /> : activeNav === "Transactions & Logs" ? <IntegrationLogs /> : activeNav === "Partner Access" ? <PartnerAccess /> : isWizard ? <div className="content">
           <div className="page-heading">
             <div><div className="eyebrow">INTEGRATION CONFIGURATION</div><h1>Create integration</h1><p>Set up how Healjour and a lab exchange CSV files, one simple step at a time.</p></div>
             <div className="heading-actions"><Button variant="outline" onClick={() => {setStep(0); setNotice("Wizard reset to step 1.");}}> <RefreshCw size={16}/> Reset wizard</Button><Button variant="default" onClick={saveDraft}><Save size={16}/> Save draft</Button></div>

@@ -57,7 +57,7 @@ export default function AuthGate({ area }: { area: Area }) {
     return <WrongArea title="You are a Healjour admin" text="Admins work from the admin dashboard." goLabel="Open admin dashboard" goHref="/admin" onLogout={() => void logout()} />;
   }
   if (!isAdmin) return <LabPortal user={user} lab={state.lab} onLogout={() => void logout()} onChangePassword={() => setChanging(true)} />;
-  return <App user={user} onLogout={() => void logout()} onChangePassword={() => setChanging(true)} />;
+  return <App user={user} modules={state.modules ?? []} superAdmin={Boolean(state.superAdmin)} onLogout={() => void logout()} onChangePassword={() => setChanging(true)} />;
 }
 
 function WrongArea({ title, text, goLabel, goHref, onLogout }: { title: string; text: string; goLabel: string; goHref: string; onLogout: () => void }) {

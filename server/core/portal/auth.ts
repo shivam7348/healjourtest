@@ -1,7 +1,8 @@
 // Login and role-based access (RBAC) for Healjour staff and partner labs.
 //
 // Roles
-//   healjour_admin  Healjour team: every lab, every case, all admin screens and APIs.
+//   healjour_admin  Healjour team: every lab and case. What admin screens they get depends on their admin
+//                   role (see access.ts); isSuperAdmin = true adds full control (admins, roles, sessions, audit).
 //   lab_admin       One lab: its cases, reports, and its own team (staff and viewers).
 //   lab_staff       One lab: its cases; can update status, enter results, upload reports.
 //   lab_viewer      One lab: read-only view of its cases and reports.
@@ -43,6 +44,8 @@ export type PortalUser = {
   createdAt: string;
   createdBy: string | null;
   lastLoginAt?: string;
+  isSuperAdmin?: boolean;   // healjour_admin only: full control (see access.ts)
+  adminRoleId?: string;     // healjour_admin only: which modules they may use; absent = full access
 };
 export type PublicUser = Omit<PortalUser, "passwordHash">;
 export type PortalLab = { id: string; code: string; name: string; city?: string; contactEmail?: string; active: boolean; createdAt: string };
@@ -85,11 +88,14 @@ const tokenHash = (token: string) => createHash("sha256").update(token).digest("
 export async function createSession(user: PortalUser, userAgent?: string) {
   const token = randomBytes(32).toString("base64url");
   const now = new Date();
+  // Session length is set by the Super Admin (Security); 12 hours by default.
+  const stored = await getStore().docGet<{ id: string; sessionHours?: number }>("systemSettings", "system");
+  const hours = stored?.sessionHours && stored.sessionHours >= 1 && stored.sessionHours <= 72 ? stored.sessionHours : SESSION_HOURS;
   await getStore().docPut<Session>(SESSIONS, {
     id: tokenHash(token), userId: user.id, createdAt: now.toISOString(),
-    expiresAt: new Date(now.getTime() + SESSION_HOURS * 3600_000).toISOString(), userAgent: userAgent?.slice(0, 200)
+    expiresAt: new Date(now.getTime() + hours * 3600_000).toISOString(), userAgent: userAgent?.slice(0, 200)
   });
-  return { token, maxAgeMs: SESSION_HOURS * 3600_000 };
+  return { token, maxAgeMs: hours * 3600_000 };
 }
 
 export async function endSession(token: string | undefined) {

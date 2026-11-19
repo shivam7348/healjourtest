@@ -5,7 +5,7 @@ import { MatchHint, PasswordInput } from "@/components/PasswordInput";
 import { api, type AuthState } from "./api";
 
 /** Sign-in for Healjour staff and lab users; on a fresh install, creates the first Healjour admin. */
-export function LoginPage({ state, area, onDone }: { state: AuthState; area: "admin" | "lab"; onDone: () => void }) {
+export function LoginPage({ state, area, onDone }: { state: AuthState; area: "admin" | "lab" | "super"; onDone: () => void }) {
   const setup = state.setupNeeded && area === "admin";
   const [f, setF] = useState({ name: "", email: "", password: "", confirm: "", setupKey: "" });
   const [busy, setBusy] = useState(false);
@@ -28,9 +28,10 @@ export function LoginPage({ state, area, onDone }: { state: AuthState; area: "ad
 
   return <div className="auth-screen">
     <form className="auth-card" onSubmit={e => void submit(e)}>
-      <div className="auth-brand"><div className="brand-mark"><Workflow size={22} /></div><div><b>healjour</b><small>{area === "admin" ? "Integration Hub · Admin" : "Lab Portal"}</small></div></div>
-      <h1>{setup ? "Set up the first admin" : area === "admin" ? "Admin sign in" : "Lab sign in"}</h1>
+      <div className="auth-brand"><div className="brand-mark"><Workflow size={22} /></div><div><b>healjour</b><small>{area === "super" ? "Super Admin console" : area === "admin" ? "Integration Hub · Admin" : "Lab Portal"}</small></div></div>
+      <h1>{setup ? "Set up the first admin" : area === "super" ? "Super Admin sign in" : area === "admin" ? "Admin sign in" : "Lab sign in"}</h1>
       <p className="auth-sub">{setup ? "No users exist yet. Create the Healjour admin account. You can add labs and their users after this."
+        : area === "super" ? "Full control of Healjour: admins, roles and permissions, users, labs, sessions and the audit log. Only Super Admins can sign in here."
         : area === "admin" ? "For the Healjour team. Partner labs sign in on the Lab Portal page."
         : "Sign in with the email and password Healjour or your lab admin gave you. You will see your lab's cases."}</p>
       {setup && <label className="field"><span>Your name</span><input value={f.name} onChange={set("name")} autoComplete="name" required /></label>}
@@ -40,7 +41,7 @@ export function LoginPage({ state, area, onDone }: { state: AuthState; area: "ad
       {setup && state.setupKeyRequired && <label className="field"><span>Setup key</span><input value={f.setupKey} onChange={set("setupKey")} /><small>The value of PORTAL_SETUP_KEY on the server.</small></label>}
       {error && <div className="access-message error"><X size={16} />{error}</div>}
       <Button type="submit" variant="default" disabled={busy}>{setup ? <><ShieldCheck size={15} /> Create admin and sign in</> : <><LogIn size={15} /> {busy ? "Signing in…" : "Sign in"}</>}</Button>
-      {!setup && <p className="auth-foot">{area === "admin" ? <>Forgot your password? Ask another Healjour admin to reset it. · <a href="/">Lab Portal</a></> : "Forgot your password? Ask your lab admin or Healjour to reset it."}</p>}
+      {!setup && <p className="auth-foot">{area === "super" ? <>Not a Super Admin? Admins sign in at <a href="/admin">/admin</a>.</> : area === "admin" ? <>Forgot your password? Ask another Healjour admin to reset it. · <a href="/">Lab Portal</a></> : "Forgot your password? Ask your lab admin or Healjour to reset it."}</p>}
     </form>
   </div>;
 }

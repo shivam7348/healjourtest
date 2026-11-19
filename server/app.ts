@@ -1,4 +1,6 @@
 import express from "express";
+import { allowedPermissions, getSystemSettings, isSuperAdmin, MODULES, permissionForRequest } from "./core/portal/access.js";
+import { registerSuperRoutes } from "./super-routes.js";
 import { publicBaseUrl } from "./core/public-url.js";
 import cors from "cors";
 import { z } from "zod";
@@ -61,8 +63,31 @@ app.use(async (req, res, next) => {
     next(error);
   }
 });
+// Admin RBAC: every admin API call needs "<module>.<action>" from the admin's role; /api/super is Super Admin only.
+// Maintenance mode lets only Super Admins in.
+app.use(async (req, res, next) => {
+  if (!req.path.startsWith("/api/")) return next();
+  const superPath = req.path === "/api/super" || req.path.startsWith("/api/super/");
+  const permission = permissionForRequest(req.method, req.path, req.query as Record<string, unknown>);
+  try {
+    const user = req.portalUser ?? await currentUser(req);
+    if (!user) return next();                                          // route guards answer 401
+    if (isSuperAdmin(user)) return next();
+    if (superPath) return res.status(403).json({ error: "Only a Super Admin can do this." });
+    if (!req.path.startsWith("/api/auth/") && (await getSystemSettings()).maintenance) {
+      return res.status(503).json({ error: (await getSystemSettings()).maintenanceMessage });
+    }
+    if (user.role !== "healjour_admin" || !permission) return next();  // lab users: their lab role decides
+    if (!(await allowedPermissions(user)).includes(permission)) {
+      const [mod, action] = permission.split(".") as [keyof typeof MODULES, string];
+      return res.status(403).json({ error: `Your admin role cannot ${action} in ${MODULES[mod].label}.` });
+    }
+    next();
+  } catch (error) { next(error); }
+});
 registerPortalRoutes(app);
 registerFrameworkRoutes(app);
+registerSuperRoutes(app);
 registerHubRoutes(app);
 
 const configSchema = z.object({
