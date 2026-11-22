@@ -50,7 +50,8 @@ export async function ensureCatalogSynced(config: FlabsConfig, options: { force?
         const next: SyncState = { lastSyncedAt: new Date().toISOString() };
         await logIntegration({
           type: "sync", status: "success", account: config.label, title: "Tests auto-synced",
-          message: `${report.matched.length} test(s) and ${report.packages.matched.length} package(s) matched with Flabs.`
+          message: `${report.matched.length} test(s) and ${report.packages.matched.length} package(s) matched with Flabs.${report.created.length ? ` ${report.created.length} new test(s) added to the catalog.` : ""}`,
+          ...(report.created.length ? { details: [`New: ${report.created.map(c => `${c.code} (${c.category})`).join(", ")}`.slice(0, 4000)] } : {})
         });
         return next;
       } catch (error) {

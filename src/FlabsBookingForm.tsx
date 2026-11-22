@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, Send, X } from "lucide-react";
 import DateTimeField from "./DateTimeField";
 import { MapEditor, type FlabsCatalog, type MapItem } from "./PreBookingForm";
-import { DEFAULT_FIELDS, normalizeFields, type FieldConfig } from "./bookingFields";
+import { DEFAULT_FIELDS, normalizeFields, resolveDefault, type FieldConfig } from "./bookingFields";
 import { fetchCorporates, type CorporateMapping, type FlabsCorporate } from "./FlabsCorporates";
 
 type Connection = { id: string; label: string; branchId: string | null; phase: "lead" | "booking"; party: { field: string; id: string } | null; isDefault: boolean };
@@ -166,12 +166,12 @@ export default function FlabsBookingForm() {
   const applyDefaults = (list: FieldConfig[]) => {
     setF(prev => {
       const next: Record<string, unknown> = { ...prev };
-      for (const fc of list) if (!fc.custom && fc.defaultValue && !String((prev as Record<string, unknown>)[fc.key] ?? "").trim()) next[fc.key] = fc.defaultValue;
+      for (const fc of list) if (!fc.custom && fc.defaultValue && !String((prev as Record<string, unknown>)[fc.key] ?? "").trim()) next[fc.key] = resolveDefault(fc);
       return next as typeof prev;
     });
     setCv(prev => {
       const next = { ...prev };
-      for (const fc of list) if (fc.custom && fc.defaultValue && !(prev[fc.key] ?? "").trim()) next[fc.key] = fc.defaultValue;
+      for (const fc of list) if (fc.custom && fc.defaultValue && !(prev[fc.key] ?? "").trim()) next[fc.key] = resolveDefault(fc);
       return next;
     });
   };
@@ -197,6 +197,7 @@ export default function FlabsBookingForm() {
   const missing = [
     !connectionId && "Flabs account",
     ...fields.filter(fc => fc.visible && fc.required && emptyField(fc)).map(fc => (fc.key === "contact" ? "Mobile number (10 digits)" : fc.label)),
+    /T$/.test(f.scheduledAt) && "Booking time",
     (testCodes.length + packageCodes.length + unmappedTests.length + unmappedPackages.length) === 0 && "At least one test or package"
   ].filter(Boolean) as string[];
   const [showMissing, setShowMissing] = useState(false);
@@ -211,6 +212,7 @@ export default function FlabsBookingForm() {
     }
     void submit();
   };
+  const bookingTypeField = fields.find(fc => fc.key === "bookingType") ?? DEFAULT_FIELDS.find(fc => fc.key === "bookingType")!;
   const isMissing = (fc: FieldConfig) => showMissing && fc.visible && fc.required && emptyField(fc);
 
   /** One patient field, drawn from its settings (label, type, options, required). */
@@ -257,7 +259,7 @@ export default function FlabsBookingForm() {
         <section className="access-card">
           <div className="access-card-head"><div><h2>1. Patient details</h2><p>Fields marked * are required.</p></div></div>
           <div className="form-grid">
-            {fields.filter(fc => fc.visible).map(fc => renderPatientField(fc))}
+            {fields.filter(fc => fc.visible && fc.key !== "bookingType").map(fc => renderPatientField(fc))}
           </div>
         </section>
 
@@ -326,9 +328,9 @@ export default function FlabsBookingForm() {
             <label className="field"><span>Payment mode</span>
               <select value={f.paymentMode} onChange={set("paymentMode")}><option value="">—</option><option>Razorpay UPI</option><option>Card</option><option>Cash</option></select>
             </label>
-            <label className="field"><span>Booking type</span>
-              <select value={f.bookingType} onChange={set("bookingType")}><option value="">—</option><option>Home Collection</option><option>Lab Visit</option></select>
-            </label>
+            {bookingTypeField.visible && <label className={`field${isMissing(bookingTypeField) ? " field-missing" : ""}`}><span>{bookingTypeField.label}{bookingTypeField.required ? " *" : ""}</span>
+              <select value={f.bookingType} onChange={set("bookingType")}><option value="">—</option>{(bookingTypeField.options ?? []).map(o => <option key={o}>{o}</option>)}</select>
+            </label>}
             <label className="field full"><span>Special instructions</span><textarea value={f.specialInstructions} onChange={set("specialInstructions")} rows={2} /></label>
             <label className="field full"><span>Custom fields (JSON, optional)</span><textarea value={f.customFields} onChange={set("customFields")} rows={2} placeholder='{"utm_campaign": "summer_sale"}' /></label>
           </div>

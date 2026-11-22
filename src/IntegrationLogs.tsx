@@ -158,7 +158,7 @@ export default function IntegrationLogs() {
       {shown.length === 0 ? <div className="empty-state"><b>No entries yet</b><p>Entries appear here after you send a booking or run a Flabs sync.</p></div> :
         <div className="log-table">
           <div className="log-row log-head">
-            <span>When</span><span>What happened</span><span>Account</span><span>ID</span><span>Result</span><span />
+            <span>When</span><span>What happened</span><span>Account</span><span>Transaction ID</span><span>Result</span><span />
           </div>
           {shown.map(l => {
             const chip = CHIP[l.status];
@@ -178,7 +178,7 @@ export default function IntegrationLogs() {
                 <p><b>Message:</b> {linkify(l.message)}</p>
                 {l.httpStatus && <p><b>Flabs HTTP code:</b> {l.httpStatus}</p>}
                 {l.integratorID && <p><b>Your integrator ID:</b> <code>{l.integratorID}</code> <Button variant="ghost" className="h-auto tiny-copy" onClick={() => void copy(l.integratorID!)}><Copy size={11} /> {copied === l.integratorID ? "Copied" : "Copy"}</Button></p>}
-                {l.leadId && <p><b>Flabs lead ID:</b> <code>{l.leadId}</code> <Button variant="ghost" className="h-auto tiny-copy" onClick={() => void copy(l.leadId!)}><Copy size={11} /> {copied === l.leadId ? "Copied" : "Copy"}</Button></p>}
+                {l.leadId && <p><b>Transaction ID:</b> <code>{l.leadId}</code> <Button variant="ghost" className="h-auto tiny-copy" onClick={() => void copy(l.leadId!)}><Copy size={11} /> {copied === l.leadId ? "Copied" : "Copy"}</Button></p>}
                 {l.details && l.details.length > 0 && <ul className="log-details">{l.details.map((d, i) => <li key={i}>{linkify(d)}</li>)}</ul>}
                 <p className="muted">Entry ID: {l.id} · {new Date(l.at).toLocaleString()}</p>
               </div>}

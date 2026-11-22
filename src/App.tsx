@@ -141,6 +141,9 @@ type AppProps = { user: PortalUser; modules?: string[]; superAdmin?: boolean; on
 
 function App({ user, modules = [], superAdmin = false, onLogout, onChangePassword }: AppProps) {
   const [activeNav, setActiveNav] = useState("Integration Studio");
+  const [sandboxOn, setSandboxOn] = useState(() =>
+    typeof window === "undefined" ? true : window.localStorage.getItem("healjour:sandbox") !== "off"
+  );
   const [step, setStep] = useState<Step>(0);
   const [name, setName] = useState("Noida Lab — CSV Connector");
   const [labCode, setLabCode] = useState("LAB-NOIDA-01");
@@ -157,6 +160,10 @@ function App({ user, modules = [], superAdmin = false, onLogout, onChangePasswor
   const [notice, setNotice] = useState("");
   const [rules, setRules] = useState([true, true, true, true, true, true]);
   const [mappingTab, setMappingTab] = useState<"outbound" | "inbound">("outbound");
+
+  useEffect(() => {
+    window.localStorage.setItem("healjour:sandbox", sandboxOn ? "on" : "off");
+  }, [sandboxOn]);
 
   // Top navbar sections; the sidebar lists the pages of the active section.
   const allSections = [
@@ -324,7 +331,15 @@ function App({ user, modules = [], superAdmin = false, onLogout, onChangePasswor
           <div className="rz-avatar" title={user.name}>{user.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase()}</div>
         </div>
       </header>
-      <div className="rz-notch" title="Partner connectors run against their sandboxes until live keys are set"><span className="rz-dot" /> SANDBOX</div>
+      <button
+        type="button"
+        className={`rz-notch ${sandboxOn ? "is-on" : "is-off"}`}
+        title={`Turn sandbox ${sandboxOn ? "off" : "on"}`}
+        aria-pressed={sandboxOn}
+        onClick={() => setSandboxOn(on => !on)}
+      >
+        <span className="rz-dot" /> SANDBOX {sandboxOn ? "ON" : "OFF"}
+      </button>
 
       <Sidebar collapsible="icon">
         <SidebarContent>
@@ -355,7 +370,7 @@ function App({ user, modules = [], superAdmin = false, onLogout, onChangePasswor
           </SidebarGroup>)}
         </SidebarContent>
         <SidebarFooter>
-          <div className="rz-env-row"><ShieldCheck size={16}/><span>Sandbox environment</span><span className="rz-env-badge">ON</span></div>
+          <div className="rz-env-row"><ShieldCheck size={16}/><span>Sandbox environment</span><span className={`rz-env-badge ${sandboxOn ? "is-on" : "is-off"}`}>{sandboxOn ? "ON" : "OFF"}</span></div>
           <SidebarMenu>
             <SidebarMenuItem>
               {canSee("Settings") && <SidebarMenuButton isActive={activeNav === "Settings"} tooltip="Account & Settings" onClick={() => go("Settings")}><Settings2 size={17}/><span>Account &amp; Settings</span></SidebarMenuButton>}

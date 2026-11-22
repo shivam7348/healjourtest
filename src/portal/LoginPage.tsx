@@ -47,7 +47,8 @@ export function LoginPage({ state, area, onDone }: { state: AuthState; area: "ad
 }
 
 /** Shown after a reset or for a new user: the one-time password must be replaced before anything else. */
-export function ChangePassword({ forced, onDone, onCancel }: { forced?: boolean; onDone: () => void; onCancel?: () => void }) {
+/** onBack: for a forced change, signs out and returns to the sign-in page (the user can't use the app without a new password). */
+export function ChangePassword({ forced, onDone, onCancel, onBack }: { forced?: boolean; onDone: () => void; onCancel?: () => void; onBack?: () => void }) {
   const [f, setF] = useState({ current: "", next: "", confirm: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -71,6 +72,7 @@ export function ChangePassword({ forced, onDone, onCancel }: { forced?: boolean;
       <div className="builder-actions">
         <Button type="submit" variant="default" disabled={busy}>{busy ? "Saving…" : "Save password"}</Button>
         {onCancel && <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>}
+        {forced && onBack && <Button type="button" variant="outline" onClick={onBack}>← Back to sign in</Button>}
       </div>
     </form>
   </div>;

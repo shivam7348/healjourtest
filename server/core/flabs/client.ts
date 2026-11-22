@@ -117,10 +117,12 @@ function catalogError(status: number, body: any) {
 }
 
 /** Tests with prices for this account's party, or for another party (e.g. one corporate) when given. */
+export type FlabsTest = { _id: string; name: string; code: string; cost: number };
+
 export async function listTests(config: FlabsConfig, branchID: string, partyOverride?: FlabsParty) {
   const { status, body } = await authed(config, `/client/crm/tests?branchID=${encodeURIComponent(branchID)}${partyQuery(partyOverride ?? config.party)}`);
   if (status !== 200) throw catalogError(status, body);
-  return (body.tests ?? []) as Array<{ _id: string; name: string; code: string; cost: number }>;
+  return (body.tests ?? []) as FlabsTest[];
 }
 
 export async function listPackages(config: FlabsConfig, branchID: string) {

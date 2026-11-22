@@ -45,7 +45,7 @@ export default function AuthGate({ area }: { area: Area }) {
     return <LoginPage state={state} area={area} onDone={() => void refresh()} />;
   }
   if (user.mustChangePassword || changing) {
-    return <ChangePassword forced={user.mustChangePassword} onDone={() => { setChanging(false); void refresh(); }} onCancel={user.mustChangePassword ? undefined : () => setChanging(false)} />;
+    return <ChangePassword forced={user.mustChangePassword} onDone={() => { setChanging(false); void refresh(); }} onCancel={user.mustChangePassword ? undefined : () => setChanging(false)} onBack={() => void logout()} />;
   }
 
   const isAdmin = user.role === "healjour_admin";

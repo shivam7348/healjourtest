@@ -24,7 +24,7 @@ export default function SuperGate() {
     return <div className="su-auth"><LoginPage state={state} area="super" onDone={() => void refresh()} /></div>;
   }
   if (state.user.mustChangePassword || changing) {
-    return <div className="su-auth"><ChangePassword forced={state.user.mustChangePassword} onDone={() => { setChanging(false); void refresh(); }} onCancel={state.user.mustChangePassword ? undefined : () => setChanging(false)} /></div>;
+    return <div className="su-auth"><ChangePassword forced={state.user.mustChangePassword} onDone={() => { setChanging(false); void refresh(); }} onCancel={state.user.mustChangePassword ? undefined : () => setChanging(false)} onBack={() => void logout()} /></div>;
   }
   if (!state.superAdmin) {
     return <div className="auth-screen su-auth"><div className="auth-card">

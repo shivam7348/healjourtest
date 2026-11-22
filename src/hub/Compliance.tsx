@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Download, Lock, Save, Search, Trash2 } from "lucide-react";
+import { Copy, Download, Lock, Save, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, Empty, hubApi, Msg, Pill, Stats, when } from "./shared";
 
@@ -24,6 +24,7 @@ export default function Compliance() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const load = async () => {
     try {
@@ -46,6 +47,20 @@ export default function Compliance() {
     void run(async () => { const r = await hubApi<RetentionRun>("/api/hub/compliance/retention/run", { body: { apply: true } }); setPreview(r); return `${r.results.reduce((n, x) => n + x.deleted, 0)} record(s) deleted.`; });
   };
   const lookup = () => run(async () => { setFound(await hubApi<Found>("/api/hub/compliance/lookup", { body: { phone } })); return "Search logged as an access request."; });
+  const foundJson = found ? JSON.stringify(found, null, 2) : "";
+  const copyJson = async () => {
+    try {
+      await navigator.clipboard.writeText(foundJson);
+    } catch {
+      // Clipboard can be blocked on plain http; fall back to selecting the text so the user can copy it.
+      const pre = document.querySelector<HTMLElement>(".hub-pre");
+      if (pre) { const r = document.createRange(); r.selectNodeContents(pre); const s = window.getSelection(); s?.removeAllRanges(); s?.addRange(r); }
+      setError("Copy was blocked by the browser. The text is selected: press Ctrl+C.");
+      return;
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  };
   const exportFound = () => {
     if (!found) return;
     const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), phoneLast4: phone.replace(/\D/g, "").slice(-4), data: found }, null, 2)], { type: "application/json" });
@@ -92,8 +107,13 @@ export default function Compliance() {
       {found && <>
         <div className="hub-chips">{Object.entries(found).map(([k, list]) => <span key={k}>{k}: <b>{list.length}</b></span>)}</div>
         {total === 0 ? <Empty>Nothing held for this number.</Empty> : <>
-          <div className="hub-actions"><Button variant="outline" size="sm" onClick={exportFound}><Download size={13} /> Download export (JSON)</Button></div>
-          <pre className="hub-pre">{JSON.stringify(found, null, 2)}</pre>
+          <div className="hub-actions">
+            <Button variant="outline" size="sm" onClick={exportFound}><Download size={13} /> Download export (JSON)</Button>
+            <Button variant="outline" size="sm" onClick={() => void copyJson()}><Copy size={13} /> {copied ? "Copied" : "Copy JSON"}</Button>
+          </div>
+          <div className="hub-pre-wrap">
+            <pre className="hub-pre">{foundJson}</pre>
+          </div>
           <div className="hub-review danger">
             <b>Erase this person's data</b>
             <small>Leads and messages are deleted. Bookings, results and payments keep what the law requires but lose name and phone. This cannot be undone.</small>

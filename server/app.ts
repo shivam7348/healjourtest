@@ -16,6 +16,7 @@ import { FLABS_EVENTS, handleFlabsEvent, saveResultRecord, type FlabsEvent, type
 import { buildSmartReport, renderSmartReportHtml, type ParameterRange } from "./core/flabs/smartReport.js";
 import { refreshRecordRanges } from "./core/flabs/reportRanges.js";
 import { syncFlabsCatalog } from "./core/flabs/sink.js";
+import { CATEGORIES, SUBCATEGORIES, categorize, withCategory } from "./core/catalog-category.js";
 import { autoPrebook, describeAutoPrebook, ensureCatalogSynced, syncAllInBackground } from "./core/flabs/auto.js";
 import {
   allFlabsConfigs, deleteFlabsConnection, getFlabsConfig, listConnectionViews, loadFlabsConnections,
@@ -544,7 +545,9 @@ const catalogTestSchema = z.object({
   unit: z.string().trim().max(30).optional(),
   referenceRange: z.string().trim().max(120).optional(),
   price: z.number().min(0).max(1_000_000),
-  active: z.boolean().default(true)
+  active: z.boolean().default(true),
+  category: z.string().trim().min(2).max(40).optional(),
+  subcategory: z.string().trim().max(60).optional()
 });
 const catalogPackageSchema = z.object({
   code: catalogCode,
@@ -557,14 +560,51 @@ const catalogPackageSchema = z.object({
 app.get("/api/catalog", async (_req, res) => {
   const store = getStore();
   const [tests, packages] = await Promise.all([store.listCatalogTests(), store.listCatalogPackages()]);
-  res.json({ tests, packages, storage: storageInfo() });
+  res.json({ tests: tests.map(withCategory), packages, categories: CATEGORIES, subcategories: SUBCATEGORIES, storage: storageInfo() });
 });
 
 app.post("/api/catalog/tests", async (req, res) => {
   const parsed = catalogTestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues.map(i => `${i.path.join(".") || "body"}: ${i.message}`).join(" ") });
-  await getStore().saveCatalogTest({ ...parsed.data, updatedAt: new Date().toISOString() });
+  const store = getStore();
+  const before = (await store.listCatalogTests()).find(t => t.code === parsed.data.code);
+  const { category, subcategory, ...fields } = parsed.data;
+  // Keep what the form does not edit (where it came from, its category) unless a category was sent.
+  const categoryFields = category
+    ? (category === before?.category && (subcategory ?? "") === (before?.subcategory ?? "") && before?.categorySource !== "manual"
+      ? { category, subcategory, categorySource: before?.categorySource ?? ("auto" as const) }
+      : { category, subcategory, categorySource: "manual" as const })
+    : { category: before?.category, subcategory: before?.subcategory, categorySource: before?.categorySource };
+  await store.saveCatalogTest({ ...before, ...fields, ...categoryFields, updatedAt: new Date().toISOString() });
   res.json({ message: `Test ${parsed.data.code} saved.` });
+});
+
+// Change the category of one or many tests. auto: true goes back to the detected category.
+app.patch("/api/catalog/tests/category", async (req, res) => {
+  const parsed = z.object({
+    codes: z.array(z.string().trim().min(1)).min(1, "Choose at least one test.").max(5000),
+    category: z.string().trim().min(2, "Choose a category.").max(40).optional(),
+    subcategory: z.string().trim().max(60).optional(),
+    auto: z.boolean().optional()
+  }).refine(b => b.auto || b.category, { message: "Choose a category." }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid request." });
+  const store = getStore();
+  const wanted = new Set(parsed.data.codes);
+  const tests = (await store.listCatalogTests()).filter(t => wanted.has(t.code));
+  if (!tests.length) return res.status(404).json({ error: "None of these tests are in the catalog." });
+  const now = new Date().toISOString();
+  for (const test of tests) {
+    if (parsed.data.auto) {
+      const guess = categorize(test.name, test.code);
+      await store.saveCatalogTest({ ...test, ...guess, categorySource: "auto", updatedAt: now });
+    } else {
+      await store.saveCatalogTest({ ...test, category: parsed.data.category, subcategory: parsed.data.subcategory || undefined, categorySource: "manual", updatedAt: now });
+    }
+  }
+  const label = parsed.data.auto ? "auto-detected category" : `${parsed.data.category}${parsed.data.subcategory ? ` / ${parsed.data.subcategory}` : ""}`;
+  await logIntegration({ type: "sync", status: "info", account: "Test catalog", title: "Category changed", message: `${tests.length} test(s) set to ${label}.`, details: [tests.map(t => t.code).join(", ").slice(0, 2000)] });
+  const who = tests.length === 1 ? tests[0].code : `${tests.length} tests`;
+  res.json({ ok: true, updated: tests.length, message: parsed.data.auto ? `${who}: category set back to auto-detect.` : `${who} ${tests.length === 1 ? "is" : "are"} now in ${label}.` });
 });
 
 app.post("/api/catalog/packages", async (req, res) => {
@@ -596,7 +636,8 @@ app.post("/api/catalog/tests/bulk", async (req, res) => {
   }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "No tests sent." });
   const store = getStore();
-  const existing = new Set((await store.listCatalogTests()).map(t => t.code));
+  const beforeByCode = new Map((await store.listCatalogTests()).map(t => [t.code, t]));
+  const existing = new Set(beforeByCode.keys());
   const seen = new Set<string>();
   const created: string[] = [], updated: string[] = [], errors: Array<{ row: number; code?: string; error: string }> = [];
   for (const [i, raw] of parsed.data.tests.entries()) {
@@ -604,7 +645,13 @@ app.post("/api/catalog/tests/bulk", async (req, res) => {
     if (!row.success) { errors.push({ row: i + 1, code: (raw as { code?: string })?.code, error: row.error.issues.map(x => `${x.path.join(".")}: ${x.message}`).join(" ") }); continue; }
     if (seen.has(row.data.code)) { errors.push({ row: i + 1, code: row.data.code, error: "Code used twice in this list." }); continue; }
     seen.add(row.data.code);
-    await store.saveCatalogTest({ ...row.data, updatedAt: new Date().toISOString() });
+    const before = beforeByCode.get(row.data.code);
+    await store.saveCatalogTest({
+      ...before, ...row.data,
+      category: row.data.category ?? before?.category, subcategory: row.data.category ? row.data.subcategory : before?.subcategory,
+      categorySource: row.data.category ? "manual" : before?.categorySource,
+      updatedAt: new Date().toISOString()
+    });
     (existing.has(row.data.code) ? updated : created).push(row.data.code);
   }
   let packageMessage: string | undefined;
@@ -828,10 +875,11 @@ app.post("/api/flabs/connections/:id/sync", async (req, res) => {
     const report = await syncFlabsCatalog(config);
     await logIntegration({
       type: "sync", status: "success", account: config.label, title: "Tests synced",
-      message: `${report.matched.length} test(s) and ${report.packages.matched.length} package(s) matched with Flabs.`,
+      message: `${report.matched.length} test(s) and ${report.packages.matched.length} package(s) matched with Flabs.${report.created.length ? ` ${report.created.length} new test(s) added to the catalog.` : ""}`,
       details: [
         `Matched tests: ${report.matched.map(m => `${m.healjourCode}→${m.flabsCode} ₹${m.flabsCost}`).join(", ") || "none"}`,
         `In Healjour, not in Flabs: ${report.healjourOnly.join(", ") || "none"}`,
+        `New Healjour tests created from Flabs: ${report.created.map(c => `${c.code} (${c.category})`).join(", ") || "none"}`,
         `In Flabs, not in Healjour: ${report.flabsOnly.join(", ") || "none"}`,
         `Matched packages: ${report.packages.matched.map(m => m.healjourCode).join(", ") || "none"}`
       ]

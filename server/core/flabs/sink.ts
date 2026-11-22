@@ -5,7 +5,8 @@
 import type { CanonicalRecord } from "../types.js";
 import type { CatalogTest, FlabsMapping } from "../models.js";
 import { getStore } from "../store.js";
-import { createLead, listPackages, listTests, FlabsError, type CreateLeadPayload, type FlabsConfig } from "./client.js";
+import { categorize, toCatalogCode, uniqueCode } from "../catalog-category.js";
+import { createLead, listPackages, listTests, type FlabsTest, FlabsError, type CreateLeadPayload, type FlabsConfig } from "./client.js";
 import { autoPrebook, describeAutoPrebook } from "./auto.js";
 
 export type SyncReport = {
@@ -14,8 +15,10 @@ export type SyncReport = {
   matched: Array<{ healjourCode: string; flabsCode: string; flabsCost: number }>;
   /** Healjour tests with no Flabs test of the same code. They will go out as unmappedTests. */
   healjourOnly: string[];
-  /** Flabs tests with no Healjour test of the same code. Candidates to add to the catalog. */
+  /** Flabs tests with no Healjour test of the same code (normally empty: such tests are created). */
   flabsOnly: string[];
+  /** Healjour tests this sync created from Flabs tests. Existing tests are never changed. */
+  created: Array<{ code: string; name: string; price: number; category: string; subcategory: string }>;
   packages: {
     flabsPackageCount: number;
     matched: Array<{ healjourCode: string; flabsCode: string; flabsPrice: number }>;
@@ -24,6 +27,77 @@ export type SyncReport = {
   };
 };
 
+// Two accounts syncing at once must not both create the same test, so catalog writes run one at a time.
+let catalogChain: Promise<unknown> = Promise.resolve();
+function withCatalogLock<T>(task: () => Promise<T>): Promise<T> {
+  const run = catalogChain.then(task, task);
+  catalogChain = run.catch(() => undefined);
+  return run;
+}
+
+/**
+ * Maps every Healjour test to this account's Flabs test, then creates a Healjour test for each Flabs test
+ * that has none yet (name, code, price, detected category). Tests that already exist are never changed.
+ */
+async function matchAndCreateTests(config: FlabsConfig, flabsTests: FlabsTest[], now: string) {
+  const store = getStore();
+  const flabsTestByCode = new Map(flabsTests.map(t => [t.code.trim().toUpperCase(), t]));
+  const flabsTestById = new Map(flabsTests.map(t => [t._id, t]));
+  const healjourTests = await store.listCatalogTests();
+  const existing = await store.listFlabsMappings(config.id);
+  const testMappings: FlabsMapping[] = [];
+  const healjourOnly: string[] = [];
+  const auto = (healjourCode: string, t: FlabsTest): FlabsMapping =>
+    ({ connectionId: config.id, kind: "test", healjourCode, flabsId: t._id, flabsCode: t.code, flabsName: t.name, flabsCost: t.cost, source: "auto", syncedAt: now });
+  for (const test of healjourTests) {
+    // Manual choices survive a sync; the Flabs name and rate are refreshed from the live list.
+    const manual = existing.find(m => m.kind === "test" && m.source === "manual" && m.healjourCode === test.code);
+    if (manual) {
+      const live = flabsTestById.get(manual.flabsId);
+      testMappings.push({ ...manual, flabsCode: live?.code ?? manual.flabsCode, flabsName: live?.name ?? manual.flabsName, flabsCost: live?.cost ?? manual.flabsCost, syncedAt: now });
+      continue;
+    }
+    // A test an earlier sync created from this account keeps pointing at the Flabs test it came from.
+    const origin = test.createdFrom?.connectionId === config.id ? flabsTestById.get(test.createdFrom.flabsId) : undefined;
+    const match = origin ?? flabsTestByCode.get(test.code.toUpperCase()) ?? flabsTestByCode.get(toCatalogCode(test.code, test.name));
+    if (match) testMappings.push(auto(test.code, match));
+    else healjourOnly.push(test.code);
+  }
+
+  // Flabs tests no Healjour test points at yet: create them (or map onto a free test with the same cleaned code).
+  const mappedFlabsIds = new Set(testMappings.map(m => m.flabsId));
+  const mappedHealjour = new Set(testMappings.map(m => m.healjourCode));
+  const byCode = new Map(healjourTests.map(t => [t.code, t]));
+  const taken = new Set(byCode.keys());
+  const created: SyncReport["created"] = [];
+  for (const t of flabsTests) {
+    if (mappedFlabsIds.has(t._id)) continue;
+    const name = (t.name ?? "").trim().replace(/\s+/g, " ");
+    if (!name && !(t.code ?? "").trim()) continue;
+    let code = toCatalogCode(t.code ?? "", name);
+    const same = byCode.get(code);
+    if (same && !mappedHealjour.has(code)) {
+      // A Healjour test with this code exists but was not matched: link it, leave the test as it is.
+      testMappings.push(auto(code, t)); mappedFlabsIds.add(t._id); mappedHealjour.add(code);
+      healjourOnly.splice(healjourOnly.indexOf(code), 1);
+      continue;
+    }
+    code = uniqueCode(code, taken);
+    const guess = categorize(name, t.code ?? "");
+    const test: CatalogTest = {
+      code, name: (name.length >= 2 ? name : code).slice(0, 120), price: Math.max(0, Number(t.cost) || 0), active: true, updatedAt: now,
+      category: guess.category, subcategory: guess.subcategory, categorySource: "auto",
+      createdFrom: { connectionId: config.id, flabsId: t._id, flabsCode: t.code }
+    };
+    await store.saveCatalogTest(test);
+    taken.add(code); byCode.set(code, test); mappedFlabsIds.add(t._id); mappedHealjour.add(code);
+    testMappings.push(auto(code, t));
+    created.push({ code, name: test.name, price: test.price, category: guess.category, subcategory: guess.subcategory });
+  }
+  const flabsOnly = flabsTests.filter(t => !mappedFlabsIds.has(t._id)).map(t => t.code);
+  return { testMappings, healjourOnly, flabsOnly, created };
+}
+
 /** Matches the catalog against one Flabs account: tests and packages, by code, with that account's rates. */
 export async function syncFlabsCatalog(config: FlabsConfig): Promise<SyncReport> {
   if (!config.branchId) throw new Error("Choose a Flabs branch for this account.");
@@ -31,28 +105,8 @@ export async function syncFlabsCatalog(config: FlabsConfig): Promise<SyncReport>
   const now = new Date().toISOString();
 
   const flabsTests = await listTests(config, config.branchId);
-  const flabsTestByCode = new Map(flabsTests.map(t => [t.code.trim().toUpperCase(), t]));
-  const healjourTests = await store.listCatalogTests();
+  const { testMappings, healjourOnly, flabsOnly, created } = await withCatalogLock(() => matchAndCreateTests(config, flabsTests, now));
   const existing = await store.listFlabsMappings(config.id);
-  const testMappings: FlabsMapping[] = [];
-  const healjourOnly: string[] = [];
-  for (const test of healjourTests) {
-    // Manual choices survive a sync; the Flabs name and rate are refreshed from the live list.
-    const manual = existing.find(m => m.kind === "test" && m.source === "manual" && m.healjourCode === test.code);
-    if (manual) {
-      const live = flabsTests.find(t => t._id === manual.flabsId);
-      testMappings.push({ ...manual, flabsCode: live?.code ?? manual.flabsCode, flabsName: live?.name ?? manual.flabsName, flabsCost: live?.cost ?? manual.flabsCost, syncedAt: now });
-      continue;
-    }
-    const match = flabsTestByCode.get(test.code.toUpperCase());
-    if (match) {
-      testMappings.push({ connectionId: config.id, kind: "test", healjourCode: test.code, flabsId: match._id, flabsCode: match.code, flabsName: match.name, flabsCost: match.cost, source: "auto", syncedAt: now });
-    } else {
-      healjourOnly.push(test.code);
-    }
-  }
-  const matchedTestCodes = new Set(testMappings.map(m => m.flabsCode.toUpperCase()));
-  const flabsOnly = flabsTests.filter(t => !matchedTestCodes.has(t.code.toUpperCase())).map(t => t.code);
 
   const flabsPackages = await listPackages(config, config.branchId);
   const flabsPackageByCode = new Map(flabsPackages.map(p => [p.code.trim().toUpperCase(), p]));
@@ -84,6 +138,7 @@ export async function syncFlabsCatalog(config: FlabsConfig): Promise<SyncReport>
     matched: testMappings.map(m => ({ healjourCode: m.healjourCode, flabsCode: m.flabsCode, flabsCost: m.flabsCost })),
     healjourOnly,
     flabsOnly,
+    created,
     packages: {
       flabsPackageCount: flabsPackages.length,
       matched: packageMappings.map(m => ({ healjourCode: m.healjourCode, flabsCode: m.flabsCode, flabsPrice: m.flabsCost })),

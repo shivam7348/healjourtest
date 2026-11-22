@@ -72,6 +72,13 @@ export type CatalogTest = {
   price: number;
   active: boolean;
   updatedAt: string;
+  /** Pathology, Radiology, Cardiology, ... Missing means "detect from the name". */
+  category?: string;
+  subcategory?: string;
+  /** "manual" when someone chose the category; detection never overrides it. */
+  categorySource?: "auto" | "manual";
+  /** Set when a Flabs sync created this test: which account and Flabs test it came from. */
+  createdFrom?: { connectionId: string; flabsId: string; flabsCode: string };
 };
 
 /**
