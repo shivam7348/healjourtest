@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Building2, Check, Copy, Plug, RefreshCw, Layers, ShieldCheck, Webhook, X } from "lucide-react";
+import { api } from "./portal/api";
 
 type Conn = {
   id: string; label: string; clientIdMasked: string; branchId: string | null; phase: string;
@@ -13,32 +14,31 @@ type Topology = { connectors: Array<{ id: string; label: string; description: st
 
 const when = (iso: string) => new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 
-function useLive() {
+function useLive({ monitoring = false, marketplace = false } = {}) {
   const [connections, setConnections] = useState<Conn[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
   const [topology, setTopology] = useState<Topology | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
       const [c, l, t] = await Promise.all([
-        fetch("/api/flabs/connections").then(r => r.json()),
-        fetch("/api/logs?limit=300").then(r => r.json()),
-        fetch("/api/core/topology").then(r => r.json())
-        //
+        api<{ connections: Conn[] }>("/api/flabs/connections"),
+        monitoring ? api<{ logs: Log[] }>("/api/monitoring/logs") : null,
+        marketplace ? api<Topology>("/api/core/topology") : null
       ]);
       setConnections(c.connections ?? []);
-      setLogs(l.logs ?? []);
+      setLogs(l?.logs ?? []);
       setTopology(t);
     } catch {
       setError("Could not load data. Check that the server is running.");
     } finally {
       setLoading(false);
     }
-  };
-  useEffect(() => { void load(); }, []);
+  }, [monitoring, marketplace]);
+  useEffect(() => { void load(); }, [load]);
   return { connections, logs, topology, loading, error, reload: load };
 }
 
@@ -54,7 +54,7 @@ function Header({ title, description, onReload, loading }: { title: string; desc
 }
 
 export function MonitoringPage() {
-  const d = useLive();
+  const d = useLive({ monitoring: true });
   const relevant = d.logs.filter(l => l.type === "booking" || l.type === "delivery");
   const ok = relevant.filter(l => l.status === "success" || l.status === "duplicate").length;
   const failed = relevant.filter(l => l.status === "error");
@@ -229,13 +229,13 @@ export function SettingsPage() {
       </div>
     </section>
     <section className="access-card">
-      <div className="access-card-head"><div><h2>Access</h2><p>There is no login yet. Anyone who can open the app can change integrations.</p></div><span className="core-layer-chip failed">Not set up</span></div>
+      <div className="access-card-head"><div><h2>Access</h2><p>Super Admins manage which pages and actions each admin role can access.</p></div></div>
     </section>
   </div>;
 }
 
 export function MarketplacePage() {
-  const d = useLive();
+  const d = useLive({ marketplace: true });
   const flabsConnected = d.connections.length > 0;
   const planned = ["Razorpay (payments)", "HDFC SmartGATEWAY (payments)", "LeadSquared (CRM)", "Zoho Bookings (CRM)", "Exotel (telephony)", "Gmail and Google Workspace (email and calendar)", "Bahmni and KareXpert (HIS)"];
 

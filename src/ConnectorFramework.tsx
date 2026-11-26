@@ -128,7 +128,7 @@ function TestBench({ stats, scenarios, samples, onDone }: { stats: Stat[]; scena
     setBody(s?.body === undefined ? "" : pretty(s.body));
     setParams(s?.params ?? {});
     setResult(null);
-  }, [connectorId, operation, samples]);
+  }, [connectorId, operation]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const run = async () => {
     setBusy(true); setError(""); setResult(null);

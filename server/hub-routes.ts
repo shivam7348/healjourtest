@@ -8,10 +8,13 @@ import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { getStore } from "./core/store.js";
 import { hubConnectorModes } from "./core/hub/connectors.js";
+import { actorOf } from "./core/portal/actor.js";
+import { isJobId, runScheduled } from "./core/hub/scheduler.js";
+import { requestScope, targetWorkspace, workspaceTagger } from "./core/portal/tenancy.js";
 import { encryptionStatus } from "./core/compliance/crypto.js";
 import { sandboxAppInbox, sandboxChatLog } from "./core/framework/sandbox-partners.js";
 import { listAlerts, RUNBOOKS, setAlertStatus } from "./core/hub/alerts.js";
-import { createPaymentLink, handlePaymentWebhook, listPayments, listReconRuns, reconcile, refundPayment, simulatePayment, type Payment } from "./core/hub/payments.js";
+import { createPaymentLink, handlePaymentWebhook, listPayments, listReconRuns, reconcile, refundPayment, simulatePayment, syncPayment, type Payment } from "./core/hub/payments.js";
 import { addToCalendar, appointmentIcs, clickToCall, commsToken, getCommsSettings, handleDeliveryReport, handleIvr, listCallLogs, listMessages, queueMessage, saveCommsSettings, DEFAULT_TEMPLATES, type Message } from "./core/hub/comms.js";
 import { attribution, ingestLeads, leadsToken, listLeads, SAMPLE_PAYLOADS, SOURCES, updateLead, verifySource, type LeadSource } from "./core/hub/leads.js";
 import { authorizeAppCall, createApp, installApp, listApps, listInstallations, reviewApp, REVIEW_CHECKS, revokeInstallation, SANDBOX_CASES, SANDBOX_LAB, SCOPES, sendAppEvent, setAppSuspended, submitApp, tokenGrant, urlProblem } from "./core/hub/appstore.js";
@@ -38,8 +41,15 @@ export function registerHubRoutes(app: express.Express) {
   });
 
   // ---------------- payments ----------------
-  app.get("/api/hub/payments", async (_req, res) => {
-    res.json({ payments: await listPayments(), recon: await listReconRuns(), modes: hubConnectorModes(), webhookUrl: `${base()}/api/webhooks/payments/razorpay` });
+  app.get("/api/hub/payments", async (req, res) => {
+    const scope = await requestScope(req);
+    const tags = await workspaceTagger();
+    // In a workspace view, only links created in that workspace.
+    const payments = (await listPayments()).filter(p => scope.all || (p.workspaceId && scope.workspaces.some(w => w.id === p.workspaceId)));
+    res.json({
+      payments: payments.map(p => ({ ...p, workspace: tags.workspace(p.workspaceId) })),
+      recon: await listReconRuns(), modes: hubConnectorModes(), webhookUrl: `${base()}/api/webhooks/payments/razorpay`
+    });
   });
   app.post("/api/hub/payments", async (req, res) => {
     const p = z.object({
@@ -48,7 +58,11 @@ export function registerHubRoutes(app: express.Express) {
       amount: z.number().min(1).max(500000), purpose: z.string().trim().min(2).max(120)
     }).safeParse(req.body);
     if (!p.success) return res.status(400).json({ error: zerr(p.error) });
-    const out = await createPaymentLink({ ...p.data, email: p.data.email || undefined, amountRupees: p.data.amount });
+    const ws = targetWorkspace(await requestScope(req));
+    const out = await createPaymentLink({
+      ...p.data, email: p.data.email || undefined, amountRupees: p.data.amount,
+      creator: actorOf(req), workspaceId: ws && ws !== "ambiguous" ? ws.id : undefined
+    });
     res.status(out.ok ? 200 : 502).json(out);
   });
   app.post("/api/hub/payments/:id/simulate", async (req, res) => {
@@ -56,6 +70,10 @@ export function registerHubRoutes(app: express.Express) {
     if (!p.success) return res.status(400).json({ error: zerr(p.error) });
     const out = await simulatePayment(req.params.id, p.data.outcome, p.data.settleAdjust ?? 0);
     res.status(out.ok ? 200 : 400).json(out);
+  });
+  app.post("/api/hub/payments/:id/sync", async (req, res) => {
+    const out = await syncPayment(req.params.id);
+    res.status(out.ok ? 200 : 502).json(out);
   });
   app.post("/api/hub/payments/:id/refund", async (req, res) => {
     const p = z.object({ amount: z.number().positive().optional(), reason: z.string().trim().min(3).max(200) }).safeParse(req.body);
@@ -291,13 +309,12 @@ export function registerHubRoutes(app: express.Express) {
     const secret = process.env.CRON_SECRET?.trim();
     return Boolean(secret) && sameToken(String(req.headers.authorization ?? ""), `Bearer ${secret}`);
   };
-  app.get("/api/cron/daily", async (req, res) => {
+  // Vercel Cron (vercel.json) calls these at the scheduled times. Each runs only if switched on, once per day.
+  app.get("/api/cron/:job", async (req, res) => {
     if (!cronOk(req)) return res.status(401).json({ error: "Set CRON_SECRET and send it as a bearer token." });
-    res.json(await runDaily("cron"));
-  });
-  app.get("/api/cron/dispatch", async (req, res) => {
-    if (!cronOk(req)) return res.status(401).json({ error: "Set CRON_SECRET and send it as a bearer token." });
-    res.json(await runDispatch("cron"));
+    const id = String(req.params.job);
+    if (!isJobId(id)) return res.status(404).json({ error: "Unknown job." });
+    res.json(await runScheduled(id, "cron"));
   });
 
   // ---------------- compliance ----------------

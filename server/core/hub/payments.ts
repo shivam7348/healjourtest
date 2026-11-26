@@ -9,6 +9,7 @@ import { sandboxMarkPaid } from "../framework/sandbox-partners.js";
 import { blindIndex, decrypt, encrypt, mask } from "../compliance/crypto.js";
 import { connectorMode } from "./connectors.js";
 import { raiseAlert } from "./alerts.js";
+import type { Actor } from "../portal/actor.js";
 
 export type Provider = "razorpay" | "hdfc";
 export type PaymentStatus = "created" | "paid" | "failed" | "partially_refunded" | "refunded";
@@ -20,6 +21,8 @@ export type Payment = {
   refunded: number; refunds: Array<{ id: string; amount: number; status: string; at: string; reason: string }>;
   events: Array<{ at: string; type: string; detail: string }>;
   createdAt: string; updatedAt: string;
+  creator?: Actor;          // who created the link
+  workspaceId?: string;     // tenant the link was created in (the creator's active workspace)
 };
 export type ReconItem = { kind: "matched" | "amount_mismatch" | "missing_in_settlement" | "pending_settlement" | "unknown_settlement"; paymentId: string; ours?: number; settled?: number; note: string };
 export type ReconRun = {
@@ -48,11 +51,11 @@ export function viewPayment(p: Payment) {
     patientName: decrypt<string>(p.patientNameEnc), phone: mask(decrypt<string>(p.phoneEnc)),
     amount: p.amount / 100, refunded: p.refunded / 100, status: p.status, linkId: p.linkId, shortUrl: p.shortUrl,
     paymentId: p.paymentId, paidAt: p.paidAt, refunds: p.refunds.map(r => ({ ...r, amount: r.amount / 100 })), events: p.events,
-    createdAt: p.createdAt, updatedAt: p.updatedAt
+    createdAt: p.createdAt, updatedAt: p.updatedAt, creator: p.creator ?? null, workspaceId: p.workspaceId ?? null
   };
 }
 
-export async function createPaymentLink(input: { provider: Provider; bookingRef: string; patientName: string; phone: string; email?: string; amountRupees: number; purpose: string }) {
+export async function createPaymentLink(input: { provider: Provider; bookingRef: string; patientName: string; phone: string; email?: string; amountRupees: number; purpose: string; creator?: Actor; workspaceId?: string }) {
   const amount = Math.round(input.amountRupees * 100);
   const result = await callConnector(input.provider, "createPaymentLink", {
     idempotencyKey: `plink-${input.provider}-${input.bookingRef}-${amount}`,
@@ -75,7 +78,8 @@ export async function createPaymentLink(input: { provider: Provider; bookingRef:
     patientNameEnc: encrypt(input.patientName), phoneEnc: encrypt(input.phone), phoneIndex: blindIndex("phone", input.phone),
     ...(input.email ? { emailEnc: encrypt(input.email) } : {}),
     amount, currency: "INR", status: "created", linkId, shortUrl: d.short_url ?? d.payment_links?.web ?? "",
-    refunded: 0, refunds: [], events: [], createdAt: now, updatedAt: now
+    refunded: 0, refunds: [], events: [], createdAt: now, updatedAt: now,
+    ...(input.creator ? { creator: input.creator } : {}), ...(input.workspaceId ? { workspaceId: input.workspaceId } : {})
   };
   addEvent(p, "link.created", `Link ${linkId} for ₹${(amount / 100).toFixed(2)}`);
   await store.docPut(PAYMENTS, p);
@@ -103,7 +107,13 @@ export async function handlePaymentWebhook(provider: Provider, rawBody: string, 
   await store.docPut(EVENTS, { id: `${provider}:${id}`, at: new Date().toISOString(), event: event.event });
 
   const linkId: string | undefined = event.payload?.payment_link?.entity?.id ?? event.payload?.payment?.entity?.notes?.payment_link_id;
-  const payment = linkId ? (await store.docList<Payment>(PAYMENTS, { linkId }))[0] : undefined;
+  let payment = linkId ? (await store.docList<Payment>(PAYMENTS, { linkId }))[0] : undefined;
+  // payment.captured / payment.failed carry no link ID, but the link's notes are copied onto the payment.
+  const bookingRef: string | undefined = event.payload?.payment?.entity?.notes?.healjour_booking;
+  if (!payment && bookingRef) {
+    const amount = Number(event.payload?.payment?.entity?.amount);
+    payment = (await store.docList<Payment>(PAYMENTS, { provider, bookingRef })).find(x => x.amount === amount && x.status !== "refunded");
+  }
   if (!payment) return { status: 200, outcome: "unknown_payment" };   // 200 so the gateway does not retry forever
 
   const entity = event.payload?.payment?.entity ?? {};
@@ -148,6 +158,24 @@ export async function simulatePayment(id: string, outcome: "paid" | "failed", se
   const signature = createHmac("sha256", webhookSecret(p.provider)).update(raw).digest("hex");
   const res = await handlePaymentWebhook(p.provider, raw, signature, newId("evt"));
   return { ok: res.status === 200, outcome: res.outcome };
+}
+
+/** Asks the gateway for the link's current state; recovers payments whose webhook was missed. */
+export async function syncPayment(id: string) {
+  const store = getStore();
+  const p = await store.docGet<Payment>(PAYMENTS, id);
+  if (!p) return { ok: false, error: "Payment not found." };
+  if (p.provider !== "razorpay") return { ok: false, error: "Status check is available for Razorpay only." };
+  const result = await callConnector(p.provider, "getPaymentLink", { params: { linkId: p.linkId } });
+  if (!result.ok) return { ok: false, error: result.error ?? "Razorpay did not return the link." };
+  const link = result.data as { status?: string; payments?: Array<{ payment_id: string; amount: number; method?: string; status?: string }> };
+  const captured = (link.payments ?? []).find(x => x.status === "captured") ?? (link.status === "paid" ? link.payments?.[0] : undefined);
+  if (captured && (p.status === "created" || p.status === "failed")) {
+    p.status = "paid"; p.paymentId = captured.payment_id; p.paidAt = new Date().toISOString();
+    addEvent(p, "payment.paid", `Paid ₹${(captured.amount / 100).toFixed(2)} (${captured.method ?? "online"}), payment ${captured.payment_id} (confirmed with Razorpay)`);
+    await store.docPut(PAYMENTS, p);
+  }
+  return { ok: true, gatewayStatus: link.status ?? "unknown", payment: viewPayment(p) };
 }
 
 export async function refundPayment(id: string, amountRupees: number | undefined, reason: string) {

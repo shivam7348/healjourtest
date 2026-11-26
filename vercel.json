@@ -1,6 +1,10 @@
 {
   "crons": [
     { "path": "/api/cron/daily", "schedule": "30 0 * * *" },
-    { "path": "/api/cron/dispatch", "schedule": "0 1 * * *" }
-  ]
+    { "path": "/api/cron/dispatch", "schedule": "0 1 * * *" },
+    { "path": "/api/cron/healthcheck", "schedule": "30 4 * * *" }
+  ],
+  "functions": {
+    "src/pages/api/[...path].ts": { "maxDuration": 60 }
+  }
 }

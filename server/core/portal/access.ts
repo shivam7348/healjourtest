@@ -5,12 +5,14 @@
 // Admin role    A named set of permissions. A permission is "<module>.<action>", e.g. "orders.view" or
 //               "catalog.edit". Healjour admins get one role; no role = built-in "Full access".
 // Module        A part of the product (MODULES). Action = view | create | edit | delete | export.
-// Enforcement   The admin sidebar hides modules without ".view"; the server maps every admin API call to a
-//               module and action (permissionForRequest) and refuses it without that permission.
+// Enforcement   The sidebar and API require page access in addition to the module's action permissions.
 // Lab users (lab_admin / lab_staff / lab_viewer) keep their lab roles; this file does not limit them.
 
 import { getStore } from "../store.js";
 import type { PortalUser } from "./auth.js";
+import type { Actor } from "./actor.js";
+import { ALL_PAGES, PAGES, PAGE_API_PREFIXES, WORKSPACE_PAGES, type PageId } from "../../../src/lib/admin-pages.js";
+export { ALL_PAGES, PAGES, WORKSPACE_PAGES, isPageId, type PageId } from "../../../src/lib/admin-pages.js";
 
 export const MODULES = {
   integrations: { label: "Integrations", description: "Integration Hub (payments, messaging, leads, App Store), connector framework, integrations, core layers" },
@@ -41,7 +43,9 @@ export type AdminRole = {
   id: string; name: string; description: string;
   permissions: PermissionId[];
   modules?: ModuleId[];          // older roles (before actions): every action on these modules
+  pages?: PageId[];              // omitted or empty: all pages of the modules with view access
   builtIn: boolean; createdAt: string; updatedAt: string;
+  creator?: Actor; updater?: Actor;
 };
 export const ROLES_COLLECTION = "adminRoles";
 export const FULL_ACCESS: AdminRole = {
@@ -53,6 +57,11 @@ export const FULL_ACCESS: AdminRole = {
 export const rolePermissions = (r: AdminRole): PermissionId[] =>
   (r.permissions?.length ? r.permissions : (r.modules ?? []).flatMap(m => ALL_ACTIONS.map(a => `${m}.${a}` as PermissionId))).filter(isPermission);
 
+export function rolePages(role: AdminRole, permissions = rolePermissions(role)): PageId[] {
+  const selection = role.pages?.length ? new Set(role.pages) : null;
+  return ALL_PAGES.filter(id => permissions.includes(`${PAGES[id].module}.view`) && (!selection || selection.has(id)));
+}
+
 export const isSuperAdmin = (u: PortalUser | null | undefined) => Boolean(u && u.role === "healjour_admin" && u.isSuperAdmin);
 
 export async function listAdminRoles(): Promise<AdminRole[]> {
@@ -60,39 +69,88 @@ export async function listAdminRoles(): Promise<AdminRole[]> {
   return [FULL_ACCESS, ...custom.map(r => ({ ...r, permissions: rolePermissions(r) })).sort((a, b) => a.name.localeCompare(b.name))];
 }
 
-/** Every permission a user has. Super Admins and lab users are not limited here. */
-export async function allowedPermissions(u: PortalUser): Promise<PermissionId[]> {
-  if (u.role !== "healjour_admin" || isSuperAdmin(u) || !u.adminRoleId || u.adminRoleId === FULL_ACCESS.id) return ALL_PERMISSIONS;
-  const role = await getStore().docGet<AdminRole>(ROLES_COLLECTION, u.adminRoleId);
-  return role ? rolePermissions(role) : [];   // a deleted role grants nothing until reassigned
+/** A workspace-scoped admin works inside tenants only: platform-wide pages are never theirs, whatever the role says. */
+export const isWorkspaceScoped = (u: PortalUser) => u.role === "healjour_admin" && !isSuperAdmin(u) && Boolean(u.workspaceIds?.length);
+
+export async function allowedAdminAccess(u: PortalUser): Promise<{ permissions: PermissionId[]; pages: PageId[] }> {
+  if (u.role !== "healjour_admin" || isSuperAdmin(u)) return { permissions: ALL_PERMISSIONS, pages: ALL_PAGES };
+  let access: { permissions: PermissionId[]; pages: PageId[] };
+  if (!u.adminRoleId || u.adminRoleId === FULL_ACCESS.id) access = { permissions: ALL_PERMISSIONS, pages: ALL_PAGES };
+  else {
+    const role = await getStore().docGet<AdminRole>(ROLES_COLLECTION, u.adminRoleId);
+    if (!role) return { permissions: [], pages: [] };
+    const permissions = rolePermissions(role);
+    access = { permissions, pages: rolePages(role, permissions) };
+  }
+  return isWorkspaceScoped(u) ? { ...access, pages: access.pages.filter(id => WORKSPACE_PAGES.includes(id)) } : access;
 }
+
+/** Every permission a user has. Super Admins and lab users are not limited here. */
+export const allowedPermissions = async (u: PortalUser) => (await allowedAdminAccess(u)).permissions;
+export const allowedPages = async (u: PortalUser) => (await allowedAdminAccess(u)).pages;
 
 /** Modules a user can open (has ".view"). */
-export async function allowedModules(u: PortalUser): Promise<ModuleId[]> {
-  const perms = await allowedPermissions(u);
-  return ALL_MODULES.filter(m => perms.includes(`${m}.view`));
+export const viewableModules = (permissions: PermissionId[]) => ALL_MODULES.filter(m => permissions.includes(`${m}.view`));
+export const allowedModules = async (u: PortalUser) => viewableModules((await allowedAdminAccess(u)).permissions);
+
+// Match the case-insensitive, non-strict paths used by Express.
+export const normalizeApiPath = (path: string) => path.toLowerCase().replace(/\/+$/, "");
+const starts = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
+const reads = (method: string) => method.toUpperCase() === "GET" || method.toUpperCase() === "HEAD";
+
+const CONNECTION_READERS: readonly PageId[] = [
+  "test-catalog", "corporate-mapping", "test-builder", "organizations", "orders-bookings",
+  "integrations", "connector-marketplace", "api-webhooks", "monitoring-sla", "settings"
+];
+const CONNECTION_TOOLS: Readonly<Record<string, readonly PageId[]>> = {
+  "ai-match": ["test-builder"],
+  corporates: ["test-catalog", "corporate-mapping", "orders-bookings"],
+  "corporate-mappings": ["test-catalog", "corporate-mapping"],
+  "flabs-catalog": ["orders-bookings"],
+  mappings: ["test-catalog", "test-builder", "orders-bookings"],
+  "prebooking-settings": ["orders-bookings"],
+  sync: ["test-catalog", "orders-bookings"],
+  webhooks: ["test-catalog"]
+};
+
+/** Pages that consume a request. Shared requests can be used by any of their listed pages. */
+export function pagesForPath(method: string, requestPath: string): readonly PageId[] {
+  const path = normalizeApiPath(requestPath);
+  if (method.toUpperCase() === "POST" && ["/api/integrations", "/api/integrations/test", "/api/integrations/validate"].includes(path)) {
+    return ["integration-studio"];
+  }
+  if (path === "/api/flabs/bookings" && reads(method)) return ["booking-tracker"];
+  if (path === "/api/core/topology" && reads(method)) return ["core-layers", "integrations", "connector-marketplace"];
+  if (path === "/api/portal/labs" && reads(method)) return ["labs-users", "lab-cases"];
+  if (path === "/api/catalog" && reads(method)) return ["test-catalog", "test-builder"];
+  if (path === "/api/portal/notifications" && reads(method)) return ["lab-cases", "results-smart-reports"];
+  if (path === "/api/catalog/tests" && method.toUpperCase() === "POST") return ["test-catalog", "orders-bookings"];
+
+  if (starts(path, "/api/flabs/connections")) {
+    if (path === "/api/flabs/connections" && reads(method)) return CONNECTION_READERS;
+    const tool = path.split("/")[5];
+    return tool && Object.hasOwn(CONNECTION_TOOLS, tool) ? CONNECTION_TOOLS[tool] : ["test-catalog"];
+  }
+
+  const match = PAGE_API_PREFIXES.find(({ prefix }) => starts(path, prefix));
+  return match ? [match.id] : [];
 }
 
-const starts = (path: string, ...prefixes: string[]) => prefixes.some(p => path === p || path.startsWith(`${p}/`));
+/** The exclusive owner of an API path, if it has one. */
+export function pageForPath(method: string, path: string): PageId | null {
+  const pages = pagesForPath(method, path);
+  return pages.length === 1 ? pages[0] : null;
+}
 
-/** Which module an admin API call belongs to (null = shared or not module-specific). */
-export function moduleForPath(method: string, path: string): ModuleId | null {
-  const write = method !== "GET" && method !== "HEAD";
-  if (starts(path, "/api/super")) return null;                       // Super Admin only, checked separately
-  if (starts(path, "/api/hub", "/api/framework", "/api/integrations", "/api/core")) return "integrations";
-  if (starts(path, "/api/portal/labs", "/api/portal/users")) return "labs";
-  if (path === "/api/portal/cases" && write) return "labs";
-  if (starts(path, "/api/catalog", "/api/builder", "/api/flabs/test")) return "catalog";
+/** Existing module actions still apply to shared routes alongside page access. */
+export function moduleForPath(method: string, requestPath: string, pages = pagesForPath(method, requestPath)): ModuleId | null {
+  const path = normalizeApiPath(requestPath);
+  if (path === "/api/portal/notifications") return null; // The response is scoped to each available page.
   if (starts(path, "/api/flabs/connections")) {
-    // Reading accounts, their corporates and catalogs is shared: the booking forms need them.
-    return write ? "catalog" : null;
+    // Booking forms and account-management pages use the same account data.
+    return reads(method) ? null : "catalog";
   }
-  if (starts(path, "/api/flabs/bookings", "/api/flabs/prebookings", "/api/flabs/booking-options", "/api/flabs/results", "/api/flabs/parameter-ranges",
-    "/api/calendar", "/api/appointments", "/api/staff", "/api/booking-form")) return "orders";
-  if (starts(path, "/api/logs")) return "logs";
-  if (starts(path, "/api/partner-access")) return "developers";
-  if (starts(path, "/api/settings")) return "settings";
-  return null;
+  return pages.length ? PAGES[pages[0]].module : null;
 }
 
 /** The action an HTTP call performs: GET = view (or export for downloads), POST = create, PUT/PATCH = edit, DELETE = delete. */
@@ -107,9 +165,9 @@ export function actionForRequest(method: string, path: string, query: Record<str
   return "create";
 }
 
-export function permissionForRequest(method: string, path: string, query: Record<string, unknown> = {}): PermissionId | null {
-  const mod = moduleForPath(method, path);
-  return mod ? `${mod}.${actionForRequest(method, path, query)}` : null;
+export function permissionForRequest(method: string, path: string, query: Record<string, unknown> = {}, pages = pagesForPath(method, path)): PermissionId | null {
+  const mod = moduleForPath(method, path, pages);
+  return mod ? `${mod}.${actionForRequest(method, normalizeApiPath(path), query)}` : null;
 }
 
 // ---------- system settings (Super Admin) ----------

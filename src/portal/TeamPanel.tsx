@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Copy, KeyRound, Search, UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api, fmtDate, ROLE_LABEL, type PortalLab, type PortalUser, type Role } from "./api";
+import { CreatedBy } from "../lib/record-tags";
 
 type Tab = "all" | "active" | "invited" | "disabled";
 
@@ -119,7 +120,7 @@ export function TeamPanel({ me, lab }: { me: PortalUser; lab: PortalLab | null }
             return <tr key={u.id}>
               <td><span className="team-person">
                 <span className={`team-avatar ${st}`}>{initials(u.name)}</span>
-                <span><b>{u.name}</b>{u.id === me.id && <small> (you)</small>}</span>
+                <span><b>{u.name}</b>{u.id === me.id && <small> (you)</small>}<CreatedBy creator={u.creator} /></span>
               </span></td>
               <td className="team-email">{u.email}</td>
               <td>{manageable(u) && u.id !== me.id ? <select className="team-role-select" value={u.role} onChange={e => void run(async () => { await api(`/api/portal/users/${u.id}`, { method: "PUT", body: { role: e.target.value } }); })}>

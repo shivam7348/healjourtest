@@ -13,6 +13,7 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 import { getStore } from "../store.js";
+import type { Actor } from "./actor.js";
 
 export const ROLES = ["healjour_admin", "lab_admin", "lab_staff", "lab_viewer"] as const;
 export type Role = typeof ROLES[number];
@@ -46,10 +47,14 @@ export type PortalUser = {
   lastLoginAt?: string;
   isSuperAdmin?: boolean;   // healjour_admin only: full control (see access.ts)
   adminRoleId?: string;     // healjour_admin only: which modules they may use; absent = full access
+  workspaceIds?: string[];  // healjour_admin only: tenants whose data they see; absent or empty = every workspace (platform admin)
+  creator?: Actor;          // who created this account (name + user ID, and the Super Admin if done via "Login as")
 };
 export type PublicUser = Omit<PortalUser, "passwordHash">;
-export type PortalLab = { id: string; code: string; name: string; city?: string; contactEmail?: string; active: boolean; createdAt: string };
-type Session = { id: string; userId: string; expiresAt: string; createdAt: string; userAgent?: string };
+export type PortalLab = { id: string; code: string; name: string; city?: string; contactEmail?: string; active: boolean; createdAt: string; creator?: Actor };
+// impersonatorId: a Super Admin used "Login as" to open this user's account (short session, fully audited).
+type Session = { id: string; userId: string; expiresAt: string; createdAt: string; userAgent?: string; impersonatorId?: string; reason?: string };
+const IMPERSONATION_MINUTES = 60;
 
 export const USERS = "portalUsers";
 export const LABS = "portalLabs";
@@ -85,17 +90,30 @@ export const temporaryPassword = () => `Hj-${randomBytes(6).toString("base64url"
 
 const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
 
-export async function createSession(user: PortalUser, userAgent?: string) {
+export async function createSession(user: PortalUser, userAgent?: string, impersonation?: { by: PortalUser; reason: string }) {
   const token = randomBytes(32).toString("base64url");
   const now = new Date();
-  // Session length is set by the Super Admin (Security); 12 hours by default.
+  // Session length is set by the Super Admin (Security); 12 hours by default. "Login as" lasts one hour.
   const stored = await getStore().docGet<{ id: string; sessionHours?: number }>("systemSettings", "system");
-  const hours = stored?.sessionHours && stored.sessionHours >= 1 && stored.sessionHours <= 72 ? stored.sessionHours : SESSION_HOURS;
+  const hours = impersonation ? IMPERSONATION_MINUTES / 60
+    : stored?.sessionHours && stored.sessionHours >= 1 && stored.sessionHours <= 72 ? stored.sessionHours : SESSION_HOURS;
   await getStore().docPut<Session>(SESSIONS, {
     id: tokenHash(token), userId: user.id, createdAt: now.toISOString(),
-    expiresAt: new Date(now.getTime() + hours * 3600_000).toISOString(), userAgent: userAgent?.slice(0, 200)
+    expiresAt: new Date(now.getTime() + hours * 3600_000).toISOString(), userAgent: userAgent?.slice(0, 200),
+    ...(impersonation ? { impersonatorId: impersonation.by.id, reason: impersonation.reason } : {})
   });
   return { token, maxAgeMs: hours * 3600_000 };
+}
+
+/** The current session, if it is a "Login as" session: who opened it and why. */
+export async function impersonationOf(req: Request): Promise<{ impersonator: PortalUser; reason: string; expiresAt: string } | null> {
+  const token = sessionToken(req);
+  if (!token) return null;
+  const session = await getStore().docGet<Session>(SESSIONS, tokenHash(token));
+  if (!session?.impersonatorId) return null;
+  const impersonator = await getStore().docGet<PortalUser>(USERS, session.impersonatorId);
+  if (!impersonator) return null;
+  return { impersonator, reason: session.reason ?? "", expiresAt: session.expiresAt };
 }
 
 export async function endSession(token: string | undefined) {
@@ -106,7 +124,7 @@ export async function endSessionsForUser(userId: string) {
   await getStore().docDeleteWhere(SESSIONS, { userId });
 }
 
-const readCookie = (req: Request, name: string) => {
+export const readCookie = (req: Request, name: string) => {
   const header = req.headers.cookie ?? "";
   for (const part of header.split(";")) {
     const [k, ...v] = part.trim().split("=");
@@ -124,8 +142,17 @@ export function clearSessionCookie(res: Response) {
   res.setHeader("Set-Cookie", `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
 }
 
+// Several guards ask for the user on one request; look it up once.
+const userCache = new WeakMap<Request, Promise<PortalUser | null>>();
+
 /** The signed-in user for this request, or null. Expired sessions and disabled users count as signed out. */
-export async function currentUser(req: Request): Promise<PortalUser | null> {
+export function currentUser(req: Request): Promise<PortalUser | null> {
+  let found = userCache.get(req);
+  if (!found) { found = loadCurrentUser(req); userCache.set(req, found); }
+  return found;
+}
+
+async function loadCurrentUser(req: Request): Promise<PortalUser | null> {
   const token = sessionToken(req);
   if (!token) return null;
   const store = getStore();
@@ -134,6 +161,14 @@ export async function currentUser(req: Request): Promise<PortalUser | null> {
   if (Date.parse(session.expiresAt) < Date.now()) { await store.docDelete(SESSIONS, session.id); return null; }
   const user = await store.docGet<PortalUser>(USERS, session.userId);
   if (!user || !user.active) return null;
+  if (session.impersonatorId) {
+    // A "Login as" session ends the moment its Super Admin is disabled or loses Super Admin.
+    const by = await store.docGet<PortalUser>(USERS, session.impersonatorId);
+    if (!by || !by.active || !by.isSuperAdmin) { await store.docDelete(SESSIONS, session.id); return null; }
+    req.actor = { id: user.id, name: user.name, email: user.email, via: { id: by.id, name: by.name, email: by.email } };
+  } else {
+    req.actor = { id: user.id, name: user.name, email: user.email };
+  }
   if (user.labId) {
     const lab = await store.docGet<PortalLab>(LABS, user.labId);
     if (!lab || !lab.active) return null; // a disabled lab locks out all of its users

@@ -11,6 +11,7 @@ import type { CanonicalRecord, LayerIssue, LayerTrace } from "./types.js";
 import { isoNow } from "./types.js";
 import type { AuditEvent, ConsentPurpose, MasterPatient } from "./models.js";
 import { getStore } from "./store.js";
+import { auditActorText } from "./portal/actor.js";
 
 export type { AuditEvent, ConsentPurpose, MasterPatient } from "./models.js";
 
@@ -33,7 +34,9 @@ export const listAudit = (limit = 50) => getStore().listAudit(limit);
 // through this promise rather than racing each other.
 let auditTail: Promise<unknown> = Promise.resolve();
 
-export function recordAudit(entry: Omit<AuditEvent, "seq" | "at" | "previousHash" | "hash">): Promise<AuditEvent> {
+export function recordAudit(input: Omit<AuditEvent, "seq" | "at" | "previousHash" | "hash">): Promise<AuditEvent> {
+  // During "Login as", every entry also names the Super Admin behind the session.
+  const entry = { ...input, actor: auditActorText(input.actor) };
   const next = auditTail.then(async () => {
     const store = getStore();
     const previous = await store.lastAudit();

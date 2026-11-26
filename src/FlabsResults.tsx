@@ -7,9 +7,10 @@ type TestResult = { testName: string; status: string; parameters: Param[] };
 type Record_ = {
   id: string; integratorID: string; leadId?: string; account: string; patientName: string; contact: string;
   reportUrl?: string; tests?: TestResult[]; receivedAt: string; updatedAt: string;
+  workspace?: { id: string; tenantId: string; name: string } | null;
 };
 type Row = {
-  received: string; patient: string; contact: string; account: string; bill: string; integratorID: string;
+  received: string; patient: string; contact: string; account: string; workspace: string; bill: string; integratorID: string;
   test: string; testStatus: string; parameter: string; value: string; report: string;
 };
 
@@ -20,6 +21,7 @@ function toRows(list: Record_[]): Row[] {
   return list.flatMap(r => (r.tests ?? []).flatMap(t => {
     const base = {
       received: r.receivedAt, patient: r.patientName || "—", contact: r.contact || "", account: r.account,
+      workspace: r.workspace ? `${r.workspace.tenantId} · ${r.workspace.name}` : "",
       bill: r.id, integratorID: r.integratorID, test: t.testName, testStatus: t.status || "", report: r.reportUrl ?? ""
     };
     if (!t.parameters.length) return [{ ...base, parameter: "—", value: "—" }];
@@ -94,8 +96,8 @@ export default function FlabsResults() {
   };
 
   const exportCsv = () => {
-    const header = ["Received", "Patient", "Contact", "Account", "Bill ID", "Booking ID", "Test", "Test status", "Parameter", "Value", "Report URL"];
-    const lines = shown.map(r => [r.received, r.patient, r.contact, r.account, r.bill, r.integratorID, r.test, r.testStatus, r.parameter, r.value, r.report].map(csvCell).join(","));
+    const header = ["Received", "Patient", "Contact", "Account", "Workspace", "Bill ID", "Booking ID", "Test", "Test status", "Parameter", "Value", "Report URL"];
+    const lines = shown.map(r => [r.received, r.patient, r.contact, r.account, r.workspace, r.bill, r.integratorID, r.test, r.testStatus, r.parameter, r.value, r.report].map(csvCell).join(","));
     const blob = new Blob(["﻿" + [header.map(csvCell).join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -133,7 +135,7 @@ export default function FlabsResults() {
           {shown.map((r, i) => <tr key={i}>
             <td>{when(r.received)}</td>
             <td><b>{r.patient}</b><small>{r.contact}</small></td>
-            <td><code>{r.bill}</code><small>{r.account}</small></td>
+            <td><code>{r.bill}</code><small>{r.account}</small>{r.workspace && <span className="ws-tag">{r.workspace}</span>}</td>
             <td>{r.test}<small>{r.testStatus}</small></td>
             <td>{r.parameter}</td>
             <td><b>{r.value}</b></td>

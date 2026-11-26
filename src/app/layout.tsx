@@ -5,6 +5,9 @@ import "../styles.css";
 import "../sidebar-light.css";
 import "../core-layers.css";
 import "../reference-typography.css";
+import "../dark-tokens.css";
+import "../dark.css";
+import { THEME_BOOT_SCRIPT } from "../lib/theme-boot";
 
 export const metadata: Metadata = {
   title: "Healjour Integration Studio",
@@ -12,12 +15,19 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#f6f8fc"
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f6f8fc" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e111a" }
+  ]
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    // The theme script sets class="dark" before React loads, so the server markup can differ here.
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body>{children}</body>
     </html>
   );

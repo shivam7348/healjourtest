@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, ExternalLink, Search } from "lucide-react";
+import { CreatedBy, WorkspaceTag, type CreatorData, type WorkspaceTagData } from "./lib/record-tags";
 
 type Result = { testName: string; status: string; parameters: Array<{ name: string; value: string }> };
 type Booking = {
@@ -7,6 +8,7 @@ type Booking = {
   tests: string[]; status: "unassigned" | "assigned" | "done" | "cancelled"; createdAt?: string; updatedAt: string;
   flabsEvent?: string; flabsEventAt?: string; billId?: string; reportUrl?: string; reportAt?: string; results?: Result[];
   sampleImages?: Array<{ url: string; lat: number | null; lng: number | null; capturedAt?: string }>;
+  workspace?: WorkspaceTagData; creator?: CreatorData;
 };
 
 const STATUS_TEXT: Record<Booking["status"], string> = { unassigned: "Booked", assigned: "Assigned", done: "Completed", cancelled: "Cancelled" };
@@ -19,7 +21,7 @@ const when = (iso?: string) => (iso ? new Date(iso).toLocaleString("en-IN", { da
  * Tracks every booking created in Flabs (from the booking form and Flabs webhooks):
  * status, latest Flabs event, report link, and the test parameter values once the report is in.
  */
-export default function FlabsTracker() {
+export default function FlabsTracker({ showResults }: { showResults: boolean }) {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filter, setFilter] = useState<Booking["status"] | "all">("all");
   const [query, setQuery] = useState("");
@@ -28,7 +30,7 @@ export default function FlabsTracker() {
 
   const load = async () => {
     try {
-      const res = await fetch("/api/calendar");
+      const res = await fetch("/api/flabs/bookings");
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not load bookings.");
       const list = (data.appointments as Booking[]).filter(a => a.integratorID);
@@ -50,6 +52,7 @@ export default function FlabsTracker() {
   const shown = bookings
     .filter(b => filter === "all" || b.status === filter)
     .filter(b => !q || [b.patientName, b.integratorID, b.leadId ?? "", b.contact].some(v => v.toLowerCase().includes(q)));
+  const columns = showResults ? 9 : 8;
 
   return <section className="ftk">
     {error && <div className="access-message error">{error}</div>}
@@ -63,12 +66,12 @@ export default function FlabsTracker() {
 
     <div className="ftk-table-wrap">
       <table className="ftk-table">
-        <thead><tr><th>Booked on</th><th>Patient</th><th>Tests</th><th>Account</th><th>Booking ID</th><th>Status</th><th>Last Flabs update</th><th>Report</th><th /></tr></thead>
+        <thead><tr><th>Booked on</th><th>Patient</th><th>Tests</th><th>Account</th><th>Booking ID</th><th>Status</th><th>Last Flabs update</th>{showResults && <th>Report</th>}<th /></tr></thead>
         <tbody>
-          {shown.length === 0 && <tr><td colSpan={9} className="ftk-empty">No bookings yet. Bookings sent to Flabs from the booking form appear here.</td></tr>}
+          {shown.length === 0 && <tr><td colSpan={columns} className="ftk-empty">No bookings yet. Bookings sent to Flabs from the booking form appear here.</td></tr>}
           {shown.map(b => {
             const isOpen = open === b.id;
-            return <TrackerRow key={b.id} b={b} isOpen={isOpen} onToggle={() => setOpen(isOpen ? null : b.id)} />;
+            return <TrackerRow key={b.id} b={b} isOpen={isOpen} onToggle={() => setOpen(isOpen ? null : b.id)} showResults={showResults} columns={columns} />;
           })}
         </tbody>
       </table>
@@ -76,26 +79,28 @@ export default function FlabsTracker() {
   </section>;
 }
 
-function TrackerRow({ b, isOpen, onToggle }: { b: Booking; isOpen: boolean; onToggle: () => void }) {
+function TrackerRow({ b, isOpen, onToggle, showResults, columns }: { b: Booking; isOpen: boolean; onToggle: () => void; showResults: boolean; columns: number }) {
   return <>
     <tr className={`ftk-row ${b.status}`} onClick={onToggle}>
       <td>{when(b.createdAt)}</td>
-      <td><b>{b.patientName || "—"}</b><small>{b.contact}</small></td>
+      <td><b>{b.patientName || "—"}</b><small>{b.contact}</small><CreatedBy label="Booked by" creator={b.creator} /></td>
       <td>{b.tests.length ? b.tests.join(", ") : "—"}</td>
-      <td>{b.account}</td>
+      <td>{b.account}<div><WorkspaceTag workspace={b.workspace} compact /></div></td>
       <td><code>{b.integratorID}</code></td>
       <td><span className={`ftk-status ${b.status}`}>{STATUS_TEXT[b.status]}</span></td>
       <td>{b.flabsEvent ? <><b>{b.flabsEvent}</b><small>{when(b.flabsEventAt)}</small></> : <span className="muted">—</span>}</td>
-      <td><span className={`ftk-report ${b.reportUrl ? "ready" : ""}`}>{reportState(b)}</span></td>
+      {showResults && <td><span className={`ftk-report ${b.reportUrl ? "ready" : ""}`}>{reportState(b)}</span></td>}
       <td>{isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</td>
     </tr>
-    {isOpen && <tr className="ftk-detail-row"><td colSpan={9}>
+    {isOpen && <tr className="ftk-detail-row"><td colSpan={columns}>
       <div className="ftk-detail">
         <div className="ftk-meta">
           <div><small>Flabs lead ID</small><code>{b.leadId ?? "—"}</code></div>
-          <div><small>Bill ID</small><code>{b.billId ?? "—"}</code></div>
-          <div><small>Report</small>{b.reportUrl ? <a href={b.reportUrl} target="_blank" rel="noopener noreferrer" className="log-link">Open report <ExternalLink size={12} /></a> : <span className="muted">Not received yet</span>}</div>
-          <div><small>Report received</small><span>{when(b.reportAt)}</span></div>
+          {showResults && <>
+            <div><small>Bill ID</small><code>{b.billId ?? "—"}</code></div>
+            <div><small>Report</small>{b.reportUrl ? <a href={b.reportUrl} target="_blank" rel="noopener noreferrer" className="log-link">Open report <ExternalLink size={12} /></a> : <span className="muted">Not received yet</span>}</div>
+            <div><small>Report received</small><span>{when(b.reportAt)}</span></div>
+          </>}
         </div>
         {b.sampleImages && b.sampleImages.length > 0 && <div className="ftk-samples">
           <b>Sample photos</b>
@@ -103,7 +108,7 @@ function TrackerRow({ b, isOpen, onToggle }: { b: Booking; isOpen: boolean; onTo
             Photo {i + 1}{s.lat !== null && s.lng !== null ? ` · ${s.lat}, ${s.lng}` : " · no location"}{s.capturedAt ? ` · ${when(s.capturedAt)}` : ""}
           </a>)}
         </div>}
-        {b.results && b.results.length > 0 ? <div className="ftk-results">
+        {showResults && (b.results && b.results.length > 0 ? <div className="ftk-results">
           <b>Test results</b>
           {b.results.map((r, i) => <div key={i} className="ftk-test">
             <div className="ftk-test-head"><span>{r.testName}</span><span className="ftk-status done">{r.status || "—"}</span></div>
@@ -111,7 +116,7 @@ function TrackerRow({ b, isOpen, onToggle }: { b: Booking; isOpen: boolean; onTo
               <tbody>{r.parameters.map((p, j) => <tr key={j}><td>{p.name}</td><td><b>{p.value || "—"}</b></td></tr>)}</tbody>
             </table>
           </div>)}
-        </div> : <p className="muted">Results will appear here when Flabs sends the report.</p>}
+        </div> : <p className="muted">Results will appear here when Flabs sends the report.</p>)}
       </div>
     </td></tr>}
   </>;

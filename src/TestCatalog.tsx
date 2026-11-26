@@ -18,7 +18,7 @@ const NEW_CATEGORY = "__new__";
 const PAGE = 150;
 const emptyPackage = { code: "", name: "", price: "0", testCodes: [] as string[], active: true };
 
-export default function TestCatalog() {
+export default function TestCatalog({ canPrebook }: { canPrebook: boolean }) {
   const [tab, setTab] = useState<"tests" | "packages">("tests");
   const [tests, setTests] = useState<CatalogTest[]>([]);
   const [packages, setPackages] = useState<CatalogPackage[]>([]);
@@ -192,7 +192,7 @@ export default function TestCatalog() {
       <Button variant="ghost" className={cn("h-auto", tab === "packages" ? "selected" : "")} onClick={() => setTab("packages")}>Packages ({packages.length})</Button>
     </div>
 
-    <FlabsConnect onChanged={() => void load()} />
+    <FlabsConnect canPrebook={canPrebook} onChanged={() => void load()} />
 
     {editing && tab === "tests" && <section className="access-card" id="catalog-form">
       <div className="access-card-head"><div><h2>{testForm.code && tests.some(t => t.code === testForm.code) ? `Edit ${testForm.code}` : "New test"}</h2><p>Code must be unique. This is Healjour's internal code.</p></div></div>

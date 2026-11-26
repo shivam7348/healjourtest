@@ -176,6 +176,8 @@ export type Appointment = {
   reportAt?: string;
   results?: FlabsTestResult[];
   sampleImages?: Array<{ url: string; lat: number | null; lng: number | null; capturedAt?: string }>;
+  /** Who sent the booking (user ID + name; plus the Super Admin when sent via "Login as"). */
+  creator?: { id: string; name: string; email: string; via?: { id: string; name: string; email: string } };
 };
 
 export type FlabsTestResult = {

@@ -6,6 +6,7 @@
 
 import { MongoClient, type Collection, type Db } from "mongodb";
 import { scryptSync } from "node:crypto";
+import dns from "node:dns";
 import type { AuditEvent, Appointment, CatalogPackage, CatalogTest, Delivery, FlabsMapping, FlabsPrebookingSettings, IssuedToken, MasterPatient, PartnerLab, PipelineRun, StaffMember, StoredFlabsConnection, IntegrationLog, StudioIntegration } from "./models.js";
 
 export type StoreKind = "mongodb" | "memory";
@@ -164,8 +165,11 @@ export const seedCatalogPackages = (): CatalogPackage[] => {
 
 // --- in-memory fallback ----------------------------------------------------
 
+// "a.b" reads nested fields, like MongoDB's dotted paths.
+const fieldAt = (doc: Record<string, unknown>, path: string): unknown =>
+  path.split(".").reduce<unknown>((v, key) => (v && typeof v === "object" ? (v as Record<string, unknown>)[key] : undefined), doc);
 const matches = (doc: Record<string, unknown>, where?: Record<string, unknown>) =>
-  !where || Object.entries(where).every(([k, v]) => doc[k] === v);
+  !where || Object.entries(where).every(([k, v]) => fieldAt(doc, k) === v);
 
 class MemoryStore implements Store {
   readonly kind = "memory" as const;
@@ -513,6 +517,40 @@ export function describeUri(uri: string) {
   }
 }
 
+const reconnectListeners: Array<() => Promise<void> | void> = [];
+/** Runs after a degraded (in-memory) server reaches MongoDB again, e.g. to reload cached Flabs accounts. */
+export const onStoreReconnected = (fn: () => Promise<void> | void) => { reconnectListeners.push(fn); };
+let reconnectTimer: ReturnType<typeof setInterval> | undefined;
+
+/**
+ * True when MONGODB_URI is configured but the server is running on the in-memory fallback.
+ * Sign-in must not offer first-run setup then: an admin created now would vanish once MongoDB is back.
+ */
+export const storageDegraded = () => Boolean(process.env.MONGODB_URI?.trim()) && store?.kind === "memory";
+
+// Node on Windows sometimes fails the SRV lookup that mongodb+srv:// needs (querySrv ECONNREFUSED / ETIMEOUT)
+// while the network is fine. Retrying with public resolvers fixes it; only Node's own resolver is changed.
+const isDnsError = (e: unknown) => e instanceof Error && /querySrv|queryTxt|ENOTFOUND|EAI_AGAIN|ECONNREFUSED.*_mongodb|ETIMEOUT/i.test(e.message);
+
+async function openMongo(uri: string, dbName: string, target: string): Promise<MongoStore> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const client = new MongoClient(uri, { serverSelectionTimeoutMS: Number(process.env.MONGODB_TIMEOUT_MS || 5000) });
+    try {
+      await client.connect();
+      await client.db(dbName).command({ ping: 1 });
+      return await new MongoStore(client, client.db(dbName), target).init();
+    } catch (error) {
+      lastError = error;
+      await client.close().catch(() => undefined);
+      if (!isDnsError(error)) break;
+      dns.setServers(["8.8.8.8", "1.1.1.1", ...dns.getServers().filter(s => s !== "8.8.8.8" && s !== "1.1.1.1")]);
+      await new Promise(r => setTimeout(r, 500 * attempt));
+    }
+  }
+  throw lastError;
+}
+
 export async function connectStore(): Promise<Store> {
   if (store) return store;
   const uri = process.env.MONGODB_URI?.trim() || "mongodb://127.0.0.1:27017";
@@ -520,16 +558,28 @@ export async function connectStore(): Promise<Store> {
   const target = `${describeUri(uri)}/${dbName}`;
 
   try {
-    const client = new MongoClient(uri, { serverSelectionTimeoutMS: Number(process.env.MONGODB_TIMEOUT_MS || 5000) });
-    await client.connect();
-    await client.db(dbName).command({ ping: 1 });
-    store = await new MongoStore(client, client.db(dbName), target).init();
+    store = await openMongo(uri, dbName, target);
     console.log(`Storage: MongoDB at ${target}`);
   } catch (error) {
     const reason = error instanceof Error ? error.message.split("\n")[0] : "unknown error";
     store = new MemoryStore(`MongoDB at ${target} unreachable: ${reason}`);
     console.warn(`Storage: in-memory fallback. ${store.detail}`);
-    console.warn("Set MONGODB_URI to a reachable server for durable storage. Data will reset on restart.");
+    if (process.env.MONGODB_URI?.trim() && !reconnectTimer) {
+      // Keep trying in the background and switch over as soon as MongoDB answers, without a restart.
+      console.warn("Storage: retrying MongoDB every 15 s; the in-memory data is temporary.");
+      reconnectTimer = setInterval(async () => {
+        try {
+          const mongo = await openMongo(uri, dbName, target);
+          clearInterval(reconnectTimer); reconnectTimer = undefined;
+          store = mongo;
+          console.log(`Storage: reconnected to MongoDB at ${target}`);
+          for (const fn of reconnectListeners) await Promise.resolve(fn()).catch(e => console.warn("Storage: reconnect hook failed:", e));
+        } catch { /* still unreachable; try again next tick */ }
+      }, 15_000);
+      reconnectTimer.unref?.();
+    } else if (!process.env.MONGODB_URI?.trim()) {
+      console.warn("Set MONGODB_URI to a reachable server for durable storage. Data will reset on restart.");
+    }
   }
   return store;
 }

@@ -15,10 +15,17 @@ export default function SuperGate() {
     catch (e) { setError(e instanceof Error ? e.message : "Could not reach the server."); }
   };
   useEffect(() => { void refresh(); }, []);
+  // The server retries the database on its own; check again until it is back.
+  useEffect(() => {
+    if (!state?.storageUnavailable) return;
+    const t = setInterval(() => void refresh(), 5000);
+    return () => clearInterval(t);
+  }, [state?.storageUnavailable]);
   const logout = async () => { await api("/api/auth/logout", { body: {} }).catch(() => undefined); setChanging(false); await refresh(); };
 
   if (error) return <div className="auth-screen su-auth"><div className="auth-card"><h1>Server not reachable</h1><p className="auth-sub">{error}</p></div></div>;
   if (!state) return <div className="auth-screen su-auth"><p className="auth-sub">Loading…</p></div>;
+  if (state.storageUnavailable) return <div className="auth-screen su-auth"><div className="auth-card"><h1>Database not reachable</h1><p className="auth-sub">Reconnecting automatically… This page continues as soon as the database is back. Your data is safe.</p></div></div>;
   if (!state.user) {
     if (state.setupNeeded) return <div className="auth-screen su-auth"><div className="auth-card"><h1>Not set up yet</h1><p className="auth-sub">Create the first admin at <a href="/admin">/admin</a>. That account becomes the Super Admin.</p></div></div>;
     return <div className="su-auth"><LoginPage state={state} area="super" onDone={() => void refresh()} /></div>;

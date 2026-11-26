@@ -1,13 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "cn";
-import { KeyRound, LogOut, Plus, RefreshCw, Save, Search, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
+import { Eye, KeyRound, LogOut, Plus, RefreshCw, Save, Search, ShieldCheck, Trash2, UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { PortalUser } from "../portal/api";
+import { CreatedBy, WorkspaceTag, type CreatorData, type WorkspaceTagData } from "../lib/record-tags";
 
 type Modules = Record<string, { label: string; description: string }>;
-type Role = { id: string; name: string; description: string; modules: string[]; builtIn: boolean; admins?: number };
-type Admin = PortalUser & { roleName: string; activeSessions: number };
-type User = PortalUser & { labName: string | null };
+type Role = { id: string; name: string };
+type Admin = PortalUser & { roleName: string; activeSessions: number; effectivePages: string[]; creator: CreatorData };
+type AdminPages = Record<string, { label: string; section: string }>;
+type WorkspaceOption = { id: string; tenantId: string; code: string; name: string; active: boolean };
+type AdminList = { admins: Admin[]; roles: Role[]; pages: AdminPages; workspaces: WorkspaceOption[] };
+type User = PortalUser & { labName: string | null; creator: CreatorData; workspaces: NonNullable<WorkspaceTagData>[] };
+
+/** "Login as": asks for a reason, then opens the user's account in this browser (audited, 1 hour). */
+export async function loginAs(user: { id: string; name: string; email: string }) {
+  const reason = window.prompt(`Log in as ${user.name} (${user.email})?\n\nYou will see exactly what they see for up to 1 hour. Everything you do is recorded with both your names. Your own Super Admin session ends; use "Return to Super Admin" to come back.\n\nReason (required):`, "");
+  if (reason === null) return null;
+  const d = await call<{ redirect: string }>(`/api/super/users/${user.id}/impersonate`, "POST", { reason });
+  window.location.href = d.redirect;
+  return `Opening ${user.name}'s account…`;
+}
 type Session = { id: string; createdAt: string; expiresAt: string; userAgent: string; current: boolean; user: { id: string; name: string; email: string; role: string; isSuperAdmin: boolean } | null };
 type AuditEvent = { seq: number; at: string; actor: string; action: string; detail: string };
 type Overview = { counts: Record<string, number>; auditChain: { intact: boolean; brokenAt?: number }; recentAudit: AuditEvent[]; modules: Modules };
@@ -48,11 +61,10 @@ export function OverviewTab() {
 }
 
 export function AdminsTab({ me, run, setSecret }: { me: PortalUser; run: Run; setSecret: (s: { email: string; password: string }) => void }) {
-  const [admins, setAdmins] = useState<Admin[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [form, setForm] = useState<{ name: string; email: string; adminRoleId: string; isSuperAdmin: boolean } | null>(null);
-  const load = () => call<{ admins: Admin[]; roles: Role[] }>("/api/super/admins").then(d => { setAdmins(d.admins); setRoles(d.roles); }).catch(() => undefined);
-  useEffect(() => { void load(); }, []);
+  const [{ admins, roles, pages, workspaces }, setList] = useState<AdminList>({ admins: [], roles: [], pages: {}, workspaces: [] });
+  const [form, setForm] = useState<{ name: string; email: string; adminRoleId: string; isSuperAdmin: boolean; workspaceIds: string[] } | null>(null);
+  const load = () => call<AdminList>("/api/super/admins").then(setList);
+  useEffect(() => { void load().catch(() => undefined); }, []);
   const act = (task: () => Promise<string>) => run(async () => { const m = await task(); await load(); return m; });
   const create = () => form && act(async () => {
     const d = await call<{ user: PortalUser; temporaryPassword: string }>("/api/super/admins", "POST", form);
@@ -64,27 +76,40 @@ export function AdminsTab({ me, run, setSecret }: { me: PortalUser; run: Run; se
   const signOut = (a: Admin) => act(async () => { await call(`/api/super/users/${a.id}/sign-out`, "POST", {}); return `${a.name} was signed out everywhere.`; });
 
   return <section className="access-card">
-    <div className="access-card-head"><div><h2>Healjour admins</h2><p>Give each admin a role to limit what they can use. Super Admins can use everything, including this console.</p></div>
-      {!form && <Button variant="default" onClick={() => setForm({ name: "", email: "", adminRoleId: "full-access", isSuperAdmin: false })}><UserPlus size={15} /> Add admin</Button>}</div>
+    <div className="access-card-head"><div><h2>Healjour admins</h2><p>Each admin gets a role (which pages and actions) and workspace access (which tenants' data). Super Admins can use every page, every workspace and this console.</p></div>
+      {!form && <Button variant="default" onClick={() => setForm({ name: "", email: "", adminRoleId: "full-access", isSuperAdmin: false, workspaceIds: [] })}><UserPlus size={15} /> Add admin</Button>}</div>
     {form && <div className="form-grid sa-form">
       <label className="field"><span>Name</span><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
       <label className="field"><span>Email</span><input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
       <label className="field"><span>Admin role</span><select value={form.adminRoleId} disabled={form.isSuperAdmin} onChange={e => setForm({ ...form, adminRoleId: e.target.value })}>{roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
       <label className="sa-check"><input type="checkbox" checked={form.isSuperAdmin} onChange={e => setForm({ ...form, isSuperAdmin: e.target.checked })} /> Super Admin (full control)</label>
+      {!form.isSuperAdmin && <div className="field ws-wide"><span>Workspace access</span>
+        <WorkspacePicker workspaces={workspaces} value={form.workspaceIds} onChange={ids => setForm({ ...form, workspaceIds: ids })} />
+      </div>}
       <div className="builder-actions"><Button variant="default" disabled={form.name.trim().length < 2 || !form.email.includes("@")} onClick={() => void create()}>Create admin</Button><Button variant="outline" onClick={() => setForm(null)}>Cancel</Button></div>
     </div>}
     <div className="sa-table-wrap"><table className="sa-table">
       <thead><tr><th>Admin</th><th>Access</th><th>Status</th><th>Last sign-in</th><th>Sessions</th><th>Actions</th></tr></thead>
       <tbody>{admins.map(a => {
         const self = a.id === me.id;
+        const roleId = a.adminRoleId ?? "full-access";
         return <tr key={a.id}>
-          <td><b>{a.name}{self && <small> (you)</small>}</b><small>{a.email}</small></td>
-          <td>{a.isSuperAdmin ? <span className="sa-pill super">Super Admin</span>
-            : <select value={a.adminRoleId ?? "full-access"} onChange={e => void update(a, { adminRoleId: e.target.value }, `${a.name}'s role changed.`)}>{roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select>}</td>
+          <td><b>{a.name}{self && <small> (you)</small>}</b><small>{a.email}</small><small className="id-line">ID {a.id}</small><CreatedBy creator={a.creator} at={a.createdAt} /></td>
+          <td>
+            {a.isSuperAdmin ? <span className="sa-pill super">Super Admin</span>
+              : <select aria-label={`Admin role for ${a.name}`} value={roleId} onChange={e => void update(a, { adminRoleId: e.target.value }, `${a.name}'s role changed.`)}>
+                {!roles.some(r => r.id === roleId) && <option value={roleId} disabled>{a.roleName}</option>}
+                {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>}
+            {!a.isSuperAdmin && <WorkspaceAccess admin={a} workspaces={workspaces}
+              onSave={ids => void update(a, { workspaceIds: ids }, ids.length ? `${a.name} now works in ${ids.length} workspace(s).` : `${a.name} is now a platform admin (all workspaces).`)} />}
+            <AdminPageAccess effectivePages={a.effectivePages} pages={pages} />
+          </td>
           <td><span className={`sa-pill ${a.active ? "ok" : "bad"}`}>{a.active ? "Active" : "Disabled"}</span>{a.mustChangePassword && <small>must set password</small>}</td>
           <td>{when(a.lastLoginAt)}</td>
           <td>{a.activeSessions}</td>
           <td className="sa-actions">{!self && <>
+            {!a.isSuperAdmin && a.active && <Button variant="default" size="sm" title="Open this admin's account to see what they see" onClick={() => void run(async () => (await loginAs(a)) ?? "")}><Eye size={13} /> Login as</Button>}
             <Button variant="outline" size="sm" onClick={() => void update(a, { isSuperAdmin: !a.isSuperAdmin }, a.isSuperAdmin ? `${a.name} is no longer a Super Admin.` : `${a.name} is now a Super Admin.`)}>{a.isSuperAdmin ? "Remove Super" : "Make Super"}</Button>
             <Button variant="outline" size="sm" onClick={() => void reset(a)}><KeyRound size={13} /> Reset</Button>
             <Button variant="outline" size="sm" disabled={!a.activeSessions} onClick={() => void signOut(a)}><LogOut size={13} /> Sign out</Button>
@@ -94,6 +119,53 @@ export function AdminsTab({ me, run, setSecret }: { me: PortalUser; run: Run; se
       })}</tbody>
     </table></div>
   </section>;
+}
+
+/** No workspace ticked = platform admin (every workspace plus platform pages). Ticking any limits them to those tenants. */
+function WorkspacePicker({ workspaces, value, onChange }: { workspaces: WorkspaceOption[]; value: string[]; onChange: (ids: string[]) => void }) {
+  if (!workspaces.length) return <small className="sa-muted">No workspaces yet: this admin works across all labs. Create workspaces in Workspaces.</small>;
+  return <div className="ws-choices">
+    <label className={`ws-choice${value.length === 0 ? " on" : ""}`}><input type="radio" checked={value.length === 0} onChange={() => onChange([])} /> All workspaces <small>platform admin</small></label>
+    {workspaces.map(w => <label key={w.id} className={`ws-choice${value.includes(w.id) ? " on" : ""}`}>
+      <input type="checkbox" checked={value.includes(w.id)} onChange={() => onChange(value.includes(w.id) ? value.filter(x => x !== w.id) : [...value, w.id])} />
+      {w.name} <small>{w.tenantId}{!w.active && " · paused"}</small>
+    </label>)}
+  </div>;
+}
+
+function WorkspaceAccess({ admin, workspaces, onSave }: { admin: Admin; workspaces: WorkspaceOption[]; onSave: (ids: string[]) => void }) {
+  const [editing, setEditing] = useState<string[] | null>(null);
+  const ids = admin.workspaceIds ?? [];
+  if (editing) return <div className="ws-edit">
+    <WorkspacePicker workspaces={workspaces} value={editing} onChange={setEditing} />
+    <div className="builder-actions"><Button variant="default" size="sm" onClick={() => { onSave(editing); setEditing(null); }}><Save size={13} /> Save</Button><Button variant="outline" size="sm" onClick={() => setEditing(null)}>Cancel</Button></div>
+  </div>;
+  return <div className="ws-line">
+    {ids.length === 0 ? <span className="su-chip all">All workspaces</span>
+      : ids.map(id => <span key={id} className="su-chip">{workspaces.find(w => w.id === id)?.name ?? "Deleted workspace"}</span>)}
+    {workspaces.length > 0 && <button type="button" className="ws-edit-link" onClick={() => setEditing(ids)}>Change</button>}
+  </div>;
+}
+
+function AdminPageAccess({ effectivePages, pages }: { effectivePages: string[]; pages: AdminPages }) {
+  const allowed = new Set(effectivePages);
+  const groups = new Map<string, Array<{ id: string; label: string }>>();
+  const registered = Object.entries(pages);
+  for (const [id, { label, section }] of registered) {
+    if (!allowed.has(id)) continue;
+    const group = groups.get(section) ?? [];
+    group.push({ id, label });
+    groups.set(section, group);
+  }
+
+  return <div className="mt-1.5">
+    {groups.size === 0 ? <span className="su-chip">Overview only</span>
+      : registered.every(([id]) => allowed.has(id)) ? <span className="su-chip all">All admin pages</span>
+      : Array.from(groups, ([section, group]) => <div key={section}>
+        <small>{section}</small>
+        <div className="flex flex-wrap">{group.map(({ id, label }) => <span key={id} className="su-chip whitespace-nowrap">{label}</span>)}</div>
+      </div>)}
+  </div>;
 }
 
 
@@ -114,14 +186,15 @@ export function UsersTab({ me, run }: { me: PortalUser; run: Run }) {
       <span className="sa-muted">{shown.length} of {users.length}</span>
     </div>
     <div className="sa-table-wrap"><table className="sa-table">
-      <thead><tr><th>User</th><th>Role</th><th>Lab</th><th>Status</th><th>Last sign-in</th><th>Actions</th></tr></thead>
+      <thead><tr><th>User</th><th>Role</th><th>Lab · workspace</th><th>Status</th><th>Last sign-in</th><th>Actions</th></tr></thead>
       <tbody>{shown.map(u => <tr key={u.id}>
-        <td><b>{u.name}{u.id === me.id && <small> (you)</small>}</b><small>{u.email}</small></td>
+        <td><b>{u.name}{u.id === me.id && <small> (you)</small>}</b><small>{u.email}</small><small className="id-line">ID {u.id}</small><CreatedBy creator={u.creator} at={u.createdAt} /></td>
         <td>{u.isSuperAdmin ? <span className="sa-pill super">Super Admin</span> : ROLE_TEXT[u.role] ?? u.role}</td>
-        <td>{u.labName ?? "—"}</td>
+        <td>{u.labName ?? "—"}<div>{u.workspaces.length ? u.workspaces.map(w => <WorkspaceTag key={w.id} workspace={w} />) : u.role === "healjour_admin" && !u.isSuperAdmin ? <span className="su-chip all">All workspaces</span> : null}</div></td>
         <td><span className={`sa-pill ${u.active ? "ok" : "bad"}`}>{u.active ? "Active" : "Disabled"}</span></td>
         <td>{when(u.lastLoginAt)}</td>
         <td className="sa-actions">{u.id !== me.id && <>
+          {!u.isSuperAdmin && u.active && <Button variant="default" size="sm" title="Open this user's account to see what they see" onClick={() => void run(async () => (await loginAs(u)) ?? "")}><Eye size={13} /> Login as</Button>}
           <Button variant="outline" size="sm" onClick={() => void signOut(u)}><LogOut size={13} /> Sign out</Button>
           <Button variant={u.active ? "destructive" : "outline"} size="sm" onClick={() => void toggle(u)}>{u.active ? "Disable" : "Enable"}</Button>
         </>}</td>

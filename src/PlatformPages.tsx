@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Building2, Plug, RefreshCw, Layers } from "lucide-react";
+import { api } from "./portal/api";
 
 type Conn = {
   id: string; label: string; clientIdMasked: string; branchId: string | null; phase: string;
@@ -12,8 +13,9 @@ type Topology = { connectors: Array<{ id: string; label: string; format: string;
 
 const when = (iso: string) => new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 
-/** Loads the data every platform page needs, so the three pages stay in step with each other. */
-function useLive() {
+type OverviewAccess = { showConnections: boolean; showCatalog: boolean; showLogs: boolean };
+
+function useLive({ showConnections = false, showCatalog = false, showLogs = false, showTopology = false }: Partial<OverviewAccess> & { showTopology?: boolean }) {
   const [connections, setConnections] = useState<Conn[]>([]);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [logs, setLogs] = useState<Log[]>([]);
@@ -21,26 +23,28 @@ function useLive() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
       const [c, cat, l, t] = await Promise.all([
-        fetch("/api/flabs/connections").then(r => r.json()),
-        fetch("/api/catalog").then(r => r.json()),
-        fetch("/api/logs?limit=300").then(r => r.json()),
-        fetch("/api/core/topology").then(r => r.json())
+        showConnections ? api<{ connections: Conn[] }>("/api/flabs/connections") : null,
+        showCatalog ? api<Catalog>("/api/catalog") : null,
+        showLogs ? api<{ logs: Log[] }>("/api/logs?limit=300") : null,
+        showTopology ? api<Topology>("/api/core/topology") : null
       ]);
-      setConnections(c.connections ?? []);
+      setConnections(c?.connections ?? []);
       setCatalog(cat);
-      setLogs(l.logs ?? []);
+      setLogs(l?.logs ?? []);
       setTopology(t);
     } catch {
       setError("Backend se data nahi aaya. Check karo ki server chal raha hai.");
     } finally {
       setLoading(false);
     }
-  };
-  useEffect(() => { void load(); }, []);
+  }, [showConnections, showCatalog, showLogs, showTopology]);
+  useEffect(() => {
+    if (showConnections || showCatalog || showLogs || showTopology) void load();
+  }, [load, showConnections, showCatalog, showLogs, showTopology]);
   return { connections, catalog, logs, topology, loading, error, reload: load };
 }
 
@@ -48,15 +52,16 @@ function Stat({ label, value, hint }: { label: string; value: string | number; h
   return <div className="platform-stat"><small>{label}</small><b>{value}</b><span>{hint}</span></div>;
 }
 
-function Header({ eyebrow, title, description, onReload, loading }: { eyebrow: string; title: string; description: string; onReload: () => void; loading: boolean }) {
+function Header({ eyebrow, title, description, onReload, loading }: { eyebrow: string; title: string; description: string; onReload?: () => void; loading: boolean }) {
   return <div className="page-heading">
     <div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1><p>{description}</p></div>
-    <div className="heading-actions"><Button variant="outline" onClick={onReload} disabled={loading}><RefreshCw size={15} className={loading ? "spin" : ""} /> Refresh</Button></div>
+    {onReload && <div className="heading-actions"><Button variant="outline" onClick={onReload} disabled={loading}><RefreshCw size={15} className={loading ? "spin" : ""} /> Refresh</Button></div>}
   </div>;
 }
 
-export function OverviewPage() {
-  const d = useLive();
+export function OverviewPage({ showConnections, showCatalog, showLogs }: OverviewAccess) {
+  const d = useLive({ showConnections, showCatalog, showLogs });
+  const showStats = showConnections || showCatalog || showLogs;
   const today = new Date().toDateString();
   const todays = d.logs.filter(l => new Date(l.at).toDateString() === today);
   const bookingsToday = todays.filter(l => l.type === "booking" && (l.status === "success" || l.status === "duplicate")).length;
@@ -65,27 +70,29 @@ export function OverviewPage() {
   const activePackages = d.catalog?.packages.filter(p => p.active).length ?? 0;
 
   return <div className="content core-page flabs-theme">
-    <Header eyebrow="HEALJOUR INTEGRATION HUB" title="Overview" description="Today's activity and the state of your integrations." onReload={d.reload} loading={d.loading} />
+    <Header eyebrow="HEALJOUR INTEGRATION HUB" title="Overview" description={showStats ? "Today's activity and the state of your integrations." : "Use the sidebar to open the pages available to your role."} onReload={showStats ? d.reload : undefined} loading={d.loading} />
     {d.error && <div className="access-message error">{d.error}</div>}
-    <div className="platform-stats">
-      <Stat label="Flabs accounts" value={d.connections.length} hint={`${d.connections.filter(c => c.isDefault).length} default`} />
-      <Stat label="Bookings today" value={bookingsToday} hint="Sent to Flabs or already existed" />
-      <Stat label="Failed today" value={failedToday} hint="Need attention in Transactions & Logs" />
-      <Stat label="Catalog" value={`${activeTests} tests`} hint={`${activePackages} packages`} />
-    </div>
-    <section className="access-card">
+    {showStats && <div className="platform-stats">
+      {showConnections && <Stat label="Flabs accounts" value={d.connections.length} hint={`${d.connections.filter(c => c.isDefault).length} default`} />}
+      {showLogs && <>
+        <Stat label="Bookings today" value={bookingsToday} hint="Sent to Flabs or already existed" />
+        <Stat label="Failed today" value={failedToday} hint="Need attention in Transactions & Logs" />
+      </>}
+      {showCatalog && <Stat label="Catalog" value={`${activeTests} tests`} hint={`${activePackages} packages`} />}
+    </div>}
+    {showLogs && <section className="access-card">
       <div className="access-card-head"><div><h2>Recent activity</h2><p>Latest entries from Transactions & Logs.</p></div></div>
       {d.logs.length === 0 ? <div className="empty-state"><b>No activity yet</b><p>Bookings, syncs and account changes appear here.</p></div> :
         <div className="platform-list">{d.logs.slice(0, 6).map(l => <div key={l.id} className="platform-row">
           <span className={`core-layer-chip ${l.status === "success" ? "passed" : l.status === "error" ? "failed" : "skipped"}`}>{l.status === "success" ? "Done" : l.status === "duplicate" ? "Already existed" : l.status === "error" ? "Failed" : "Info"}</span>
           <b>{l.title}</b><small>{l.account}</small><span className="muted">{when(l.at)}</span>
         </div>)}</div>}
-    </section>
+    </section>}
   </div>;
 }
 
 export function OrganizationsPage() {
-  const d = useLive();
+  const d = useLive({ showConnections: true });
   const parties = d.connections.filter(c => c.party);
   const labs = d.connections.filter(c => !c.party);
 
@@ -116,7 +123,7 @@ export function OrganizationsPage() {
 }
 
 export function IntegrationsPage() {
-  const d = useLive();
+  const d = useLive({ showConnections: true, showTopology: true });
   const flabsOk = d.connections.length > 0;
   const mapped = d.connections.reduce((s, c) => s + c.mappedTests, 0);
 

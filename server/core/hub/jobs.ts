@@ -10,7 +10,7 @@ import { dispatchDue, scheduleReminders, type Message } from "./comms.js";
 import type { Lead } from "./leads.js";
 import { getRetention, runRetention } from "./compliance.js";
 
-export type JobRun = { id: string; at: string; job: "daily" | "dispatch"; trigger: string; ok: boolean; durationMs: number; steps: Array<{ name: string; ok: boolean; summary: string }> };
+export type JobRun = { id: string; at: string; job: "daily" | "dispatch" | "healthcheck"; trigger: string; ok: boolean; durationMs: number; steps: Array<{ name: string; ok: boolean; summary: string }> };
 const RUNS = "jobRuns";
 
 async function step(steps: JobRun["steps"], name: string, fn: () => Promise<string>) {

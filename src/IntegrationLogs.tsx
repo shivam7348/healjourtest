@@ -2,12 +2,14 @@
 import { Button } from "@/components/ui/button";
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Copy, Download, RefreshCw, X } from "lucide-react";
+import { WorkspaceTag, type WorkspaceTagData } from "./lib/record-tags";
 
 type Status = "success" | "duplicate" | "error" | "info";
 type LogType = "booking" | "sync" | "account" | "delivery" | "webhook" | "lab_portal";
 type Log = {
   id: string; at: string; type: LogType; status: Status; account: string; title: string; message: string;
   integratorID?: string; leadId?: string; httpStatus?: number; details?: string[];
+  workspace?: WorkspaceTagData;
 };
 
 const STATUS_TEXT: Record<Status, string> = {
@@ -168,7 +170,7 @@ export default function IntegrationLogs() {
               <Button variant="ghost" className="h-auto log-row" onClick={() => setOpen(expanded ? null : l.id)}>
                 <span className="log-when">{when(l.at)}</span>
                 <span className="log-what"><b>{l.title}</b><small>{TYPE_TEXT[l.type]}</small></span>
-                <span className="log-account">{l.account}</span>
+                <span className="log-account">{l.account}{l.workspace && <WorkspaceTag workspace={l.workspace} compact />}</span>
                 <span className="log-id">{l.leadId ? <><code>{l.leadId}</code></> : l.integratorID ? <code>{l.integratorID}</code> : <span className="muted">—</span>}</span>
                 <span className="log-result" style={{ background: chip.bg, color: chip.fg }}><Icon size={13} /> {STATUS_TEXT[l.status]}</span>
                 {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}

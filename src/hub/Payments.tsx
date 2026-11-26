@@ -2,11 +2,13 @@ import { Fragment, useEffect, useState } from "react";
 import { Link2, RefreshCw, RotateCcw, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, Empty, hubApi, ModeBadge, Msg, Pill, rupees, Stats, UrlRow, when } from "./shared";
+import { CreatedBy, WorkspaceTag, type CreatorData, type WorkspaceTagData } from "../lib/record-tags";
 
 type Payment = {
   id: string; provider: "razorpay" | "hdfc"; mode: string; bookingRef: string; purpose: string; patientName: string; phone: string;
   amount: number; refunded: number; status: string; shortUrl: string; paymentId?: string; paidAt?: string;
   refunds: Array<{ id: string; amount: number; at: string; reason: string }>; events: Array<{ at: string; type: string; detail: string }>; createdAt: string;
+  creator?: CreatorData; workspace?: WorkspaceTagData;
 };
 type ReconItem = { kind: string; paymentId: string; ours?: number; settled?: number; note: string };
 type Recon = { id: string; at: string; provider: string; trigger: string; ok: boolean; counts: Record<string, number>; totals: { gross: number; fees: number; tax: number; net: number }; items: ReconItem[]; error?: string };
@@ -45,6 +47,10 @@ export default function Payments() {
   const simulate = (p: Payment, outcome: "paid" | "failed", settleAdjust = 0) => run(async () => {
     await hubApi(`/api/hub/payments/${p.id}/simulate`, { body: { outcome, settleAdjust } });
     return outcome === "paid" ? "Gateway webhook received: payment marked paid." : "Gateway webhook received: payment failed.";
+  });
+  const sync = (p: Payment) => run(async () => {
+    const d = await hubApi<{ gatewayStatus: string; payment: Payment }>(`/api/hub/payments/${p.id}/sync`, { body: {} });
+    return d.payment.status === "paid" ? `Razorpay confirms payment ${d.payment.paymentId}: marked paid.` : `Razorpay says this link is "${d.gatewayStatus}". Nothing paid yet.`;
   });
   const refund = (p: Payment) => {
     const left = p.amount - p.refunded;
@@ -91,7 +97,7 @@ export default function Payments() {
         <thead><tr><th>Created</th><th>Patient</th><th>Booking</th><th>Amount</th><th>Status</th><th>Gateway</th><th>Actions</th></tr></thead>
         <tbody>{payments.map(p => <Fragment key={p.id}>
           <tr onClick={() => setOpen(open === p.id ? null : p.id)} className="hub-row">
-            <td>{when(p.createdAt)}</td><td><b>{p.patientName}</b><small>{p.phone}</small></td><td><code>{p.bookingRef}</code><small>{p.purpose}</small></td>
+            <td>{when(p.createdAt)}<CreatedBy creator={p.creator} /></td><td><b>{p.patientName}</b><small>{p.phone}</small></td><td><code>{p.bookingRef}</code><small>{p.purpose}</small><WorkspaceTag workspace={p.workspace} compact /></td>
             <td>{rupees(p.amount)}{p.refunded > 0 && <small>refunded {rupees(p.refunded)}</small>}</td>
             <td><Pill tone={STATUS_TONE[p.status] ?? "muted"}>{p.status.replace("_", " ")}</Pill></td>
             <td>{p.provider === "razorpay" ? "Razorpay" : "HDFC"} <ModeBadge mode={p.mode} /></td>
@@ -101,6 +107,9 @@ export default function Payments() {
                 <Button variant="outline" size="sm" disabled={busy} onClick={() => void simulate(p, "paid", -Math.max(1, Math.round(p.amount * 0.05)))} title="Gateway settles a different amount">Pay (settles less)</Button>
                 <Button variant="outline" size="sm" disabled={busy} onClick={() => void simulate(p, "failed")}>Fails</Button>
               </>}
+              {p.mode === "live" && p.provider === "razorpay" && (p.status === "created" || p.status === "failed") && (
+                <Button variant="outline" size="sm" disabled={busy} onClick={() => void sync(p)} title="Ask Razorpay whether this link was paid"><RefreshCw size={13} /> Check status</Button>
+              )}
               {(p.status === "paid" || p.status === "partially_refunded") && <Button variant="outline" size="sm" disabled={busy} onClick={() => refund(p)}><RotateCcw size={13} /> Refund</Button>}
             </td>
           </tr>

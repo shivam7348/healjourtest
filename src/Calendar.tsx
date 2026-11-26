@@ -8,12 +8,14 @@ import FlabsResults from "./FlabsResults";
 import DateTimeField from "./DateTimeField";
 import FlabsBookingForm from "./FlabsBookingForm";
 import PreBookingForm from "./PreBookingForm";
+import type { PageId } from "./lib/admin-pages";
+import { WorkspaceTag, type CreatorData, type WorkspaceTagData } from "./lib/record-tags";
 
 type Staff = { id: string; name: string; role: string; active: boolean };
 type Appointment = {
-  id: string; integratorID: string; leadId?: string; account: string; patientName: string; contact: string;
-  tests: string[]; bookingType?: string; address?: string; scheduledAt?: string; staffId?: string;
-  status: "unassigned" | "assigned" | "done" | "cancelled"; updatedAt: string;
+  id: string; account: string; patientName: string; tests: string[]; bookingType?: string; scheduledAt?: string; staffId?: string;
+  status: "unassigned" | "assigned" | "done" | "cancelled";
+  workspace?: WorkspaceTagData; creator?: CreatorData;
 };
 
 const DAY_MS = 86_400_000;
@@ -121,7 +123,8 @@ export function CalendarPage() {
     </div>
     <b className="cal2-patient">{a.patientName || "Patient"}</b>
     <small className="cal2-tests" title={a.tests.join(", ")}>{a.tests.join(", ") || "No tests"}</small>
-    <small className="cal2-meta">{a.account}{a.bookingType ? ` · ${a.bookingType}` : ""}</small>
+    <small className="cal2-meta" title={a.creator ? `Booked by ${a.creator.name} (ID ${a.creator.id})${a.creator.via ? ` via Super Admin ${a.creator.via.name}` : ""}` : undefined}>{a.account}{a.bookingType ? ` · ${a.bookingType}` : ""}</small>
+    {a.workspace && <WorkspaceTag workspace={a.workspace} compact />}
     <div className="cal2-actions">
       <select value={a.staffId ?? ""} disabled={busy} onChange={e => void assign(a, e.target.value)} aria-label="Assign staff">
         <option value="">Assign staff…</option>
@@ -234,22 +237,31 @@ function ScheduleField({ disabled, onSave }: { disabled: boolean; onSave: (value
 }
 
 /** Orders & Bookings: create a booking or a pre-booking, or see the calendar. */
-export type OrdersTab = "book" | "prebook" | "calendar" | "tracker" | "form" | "results";
-export function OrdersPage({ initialTab = "book" }: { initialTab?: OrdersTab } = {}) {
-  const [tab, setTab] = useState<OrdersTab>(initialTab);
+const ORDER_TABS = [
+  { id: "book", label: "New booking", icon: Plus, page: "orders-bookings" },
+  { id: "prebook", label: "Pre-booking", icon: Plus, page: "orders-bookings" },
+  { id: "calendar", label: "Calendar", icon: CalendarDays, page: "booking-calendar" },
+  { id: "tracker", label: "Tracker", icon: ClipboardList, page: "booking-tracker" },
+  { id: "form", label: "Form settings", icon: Settings2, page: "orders-bookings" },
+  { id: "results", label: "Results", icon: Download, page: "results-smart-reports" }
+] as const;
+type OrdersTab = typeof ORDER_TABS[number]["id"];
+
+export function OrdersPage({ initialTab = "book", canSeePage }: { initialTab?: OrdersTab; canSeePage: (page: PageId) => boolean }) {
+  const [requestedTab, setTab] = useState<OrdersTab>(initialTab);
+  const allowedTabs = ORDER_TABS.filter(tab => canSeePage(tab.page));
+  const tab = (allowedTabs.find(tab => tab.id === requestedTab) ?? allowedTabs[0])?.id;
+  if (!tab) return null;
   // Tracker, settings and results have no page wrapper of their own, so the whole tab gets the standard page padding.
   // The other tabs bring their own wrapper; their tab bar is aligned to the same width and padding.
   const wrapped = tab === "tracker" || tab === "form" || tab === "results";
   const page = <>
     <div className={wrapped ? "" : "orders-tabs-bar"}><div className="orders-tabs segmented">
-      <Button variant="ghost" className={cn("h-auto", tab === "book" ? "selected" : "")} onClick={() => setTab("book")}><Plus size={13} /> New booking</Button>
-      <Button variant="ghost" className={cn("h-auto", tab === "prebook" ? "selected" : "")} onClick={() => setTab("prebook")}><Plus size={13} /> Pre-booking</Button>
-      <Button variant="ghost" className={cn("h-auto", tab === "calendar" ? "selected" : "")} onClick={() => setTab("calendar")}><CalendarDays size={13} /> Calendar</Button>
-      <Button variant="ghost" className={cn("h-auto", tab === "tracker" ? "selected" : "")} onClick={() => setTab("tracker")}><ClipboardList size={13} /> Tracker</Button>
-      <Button variant="ghost" className={cn("h-auto", tab === "form" ? "selected" : "")} onClick={() => setTab("form")}><Settings2 size={13} /> Form settings</Button>
-      <Button variant="ghost" className={cn("h-auto", tab === "results" ? "selected" : "")} onClick={() => setTab("results")}><Download size={13} /> Results</Button>
+      {allowedTabs.map(({ id, label, icon: Icon }) =>
+        <Button key={id} variant="ghost" className={cn("h-auto", tab === id ? "selected" : "")} onClick={() => setTab(id)}><Icon size={13} /> {label}</Button>
+      )}
     </div></div>
-    {tab === "book" ? <FlabsBookingForm /> : tab === "prebook" ? <PreBookingForm /> : tab === "tracker" ? <FlabsTracker /> : tab === "form" ? <BookingFormSettings /> : tab === "results" ? <FlabsResults /> : <CalendarPage />}
+    {tab === "book" ? <FlabsBookingForm /> : tab === "prebook" ? <PreBookingForm /> : tab === "tracker" ? <FlabsTracker showResults={canSeePage("results-smart-reports")} /> : tab === "form" ? <BookingFormSettings /> : tab === "results" ? <FlabsResults /> : <CalendarPage />}
   </>;
   return wrapped ? <div className="content core-page flabs-theme orders-page">{page}</div> : page;
 }

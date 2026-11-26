@@ -28,7 +28,7 @@ export function LoginPage({ state, area, onDone }: { state: AuthState; area: "ad
 
   return <div className="auth-screen">
     <form className="auth-card" onSubmit={e => void submit(e)}>
-      <div className="auth-brand"><div className="brand-mark"><Workflow size={22} /></div><div><b>healjour</b><small>{area === "super" ? "Super Admin console" : area === "admin" ? "Integration Hub · Admin" : "Lab Portal"}</small></div></div>
+      <div className="auth-brand"><div className="auth-brand-logo"><img src="/healjour-logo.png" alt="Healjour" /></div><small>{area === "super" ? "Super Admin console" : area === "admin" ? "Integration Hub · Admin" : "Lab Portal"}</small></div>
       <h1>{setup ? "Set up the first admin" : area === "super" ? "Super Admin sign in" : area === "admin" ? "Admin sign in" : "Lab sign in"}</h1>
       <p className="auth-sub">{setup ? "No users exist yet. Create the Healjour admin account. You can add labs and their users after this."
         : area === "super" ? "Full control of Healjour: admins, roles and permissions, users, labs, sessions and the audit log. Only Super Admins can sign in here."

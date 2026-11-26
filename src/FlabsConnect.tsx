@@ -5,12 +5,14 @@ import { CheckCircle2, KeyRound, Link2, Pencil, Plus, Receipt, RefreshCw, Shield
 import FlabsCorporates from "./FlabsCorporates";
 import FlabsMapping from "./FlabsMapping";
 import PreBookingForm from "./PreBookingForm";
+import { CreatedBy, WorkspaceTag, type CreatorData, type WorkspaceTagData } from "./lib/record-tags";
 
 type Party = { field: "corporateUser" | "referredOrganization" | "referredHospitalOrganization"; id: string } | null;
 type Connection = {
   id: string; label: string; clientIdMasked: string; baseUrl: string; branchId: string | null;
   phase: "lead" | "booking"; party: Party; isDefault: boolean;
   secretStorage: "encrypted" | "memory" | "env"; mappedTests: number;
+  workspace?: WorkspaceTagData; creator?: CreatorData;
 };
 type Branch = { branchID: string; name: string };
 type FlabsTest = { _id: string; name: string; code: string; cost: number };
@@ -42,7 +44,7 @@ const blankForm = (): FormState => ({
  * Manages several Flabs accounts: one per lab, one per corporate, one per referral.
  * Each account gets its own branch, pricing and sync. The secret is never shown back.
  */
-export default function FlabsConnect({ onChanged }: { onChanged: () => void }) {
+export default function FlabsConnect({ canPrebook, onChanged }: { canPrebook: boolean; onChanged: () => void }) {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [canPersist, setCanPersist] = useState(true);
   const [form, setForm] = useState<FormState | null>(null);
@@ -178,11 +180,13 @@ export default function FlabsConnect({ onChanged }: { onChanged: () => void }) {
           <div>
             <b>{c.label}{c.isDefault && <span className="core-layer-chip passed account-chip">default</span>}</b>
             <small>{c.clientIdMasked} · branch {c.branchId ?? "—"} · {c.phase}{c.party ? ` · ${partyText(c.party)}` : ""}</small>
+            <WorkspaceTag workspace={c.workspace} />
+            <CreatedBy label="Connected by" creator={c.creator} />
           </div>
           <span className="trace-ms">{c.mappedTests} test mapped</span>
         </div>
         <div className="credential-actions">
-          <Button variant="default" size="sm" disabled={busy} onClick={() => setPrebookFor(prebookFor === c.id ? null : c.id)}><Receipt size={13} /> {prebookFor === c.id ? "Close pre-booking" : "Pre-booking"}</Button>
+          {canPrebook && <Button variant="default" size="sm" disabled={busy} onClick={() => setPrebookFor(prebookFor === c.id ? null : c.id)}><Receipt size={13} /> {prebookFor === c.id ? "Close pre-booking" : "Pre-booking"}</Button>}
           <Button variant="outline" size="sm" disabled={busy} onClick={() => setCorpFor(corpFor === c.id ? null : c.id)}><Building2 size={13} /> {corpFor === c.id ? "Close corporates" : "Corporates"}</Button>
           <Button variant="outline" size="sm" disabled={busy} onClick={() => void sync(c)}><RefreshCw size={13} /> Sync</Button>
           <Button variant="outline" size="sm" disabled={busy} onClick={() => flabsTests[c.id] ? hideTests(c.id) : void viewTests(c)}>{flabsTests[c.id] ? "Hide Flabs tests" : "View Flabs tests"}</Button>
@@ -192,7 +196,7 @@ export default function FlabsConnect({ onChanged }: { onChanged: () => void }) {
           <Button variant="outline" size="sm" disabled={busy} onClick={() => openEdit(c)}><Pencil size={13} /> Edit</Button>
           <Button variant="destructive" size="sm" className="account-delete" disabled={busy} onClick={() => remove(c)}><Trash2 size={13} /> Delete</Button>
         </div>
-        {prebookFor === c.id && <PreBookingForm connectionId={c.id} embedded />}
+        {canPrebook && prebookFor === c.id && <PreBookingForm connectionId={c.id} embedded />}
         {corpFor === c.id && <FlabsCorporates connectionId={c.id} />}
         {mappingFor === c.id && <FlabsMapping connectionId={c.id} label={c.label} onChanged={() => void load()} onClose={() => setMappingFor(null)} />}
         {flabsTests[c.id] && <div className="flabs-tests">

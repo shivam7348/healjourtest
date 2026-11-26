@@ -2,11 +2,12 @@
 import { Button } from "@/components/ui/button";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Wand2, Building2, ClipboardList, LogOut,
-  Activity, ArrowDownUp, ArrowLeft, ArrowRight, Bell, Check, CheckCircle2,
+  Activity, ArrowDownUp, ArrowLeft, ArrowRight, Check, CheckCircle2,
   ChevronDown, CircleHelp, Clock3, Code2, Database, FileCheck2, FileSpreadsheet,
   FlaskConical, Gauge, GitCompareArrows, LayoutDashboard, LockKeyhole, Plug,
-  Plus, RefreshCw, Save, Settings2, ShieldCheck, Upload, Workflow, X, KeyRound, Copy, RotateCw, Ban, UserCheck, UserX, Layers, Cable, Network, Search, ListChecks, FileText, CalendarDays
+  RefreshCw, Save, Settings2, ShieldCheck, Upload, Workflow, X, KeyRound, Copy, RotateCw, Ban, UserCheck, UserX, Layers, Cable, Network, Search, ListChecks, FileText, CalendarDays
 } from "lucide-react";
+import { PAGES, type PageId } from "./lib/admin-pages";
 import CoreLayers from "./CoreLayers";
 import TestCatalog from "./TestCatalog";
 import TestBuilder from "./TestBuilder";
@@ -15,7 +16,9 @@ import ConnectorFramework from "./ConnectorFramework";
 import IntegrationHub from "./hub/IntegrationHub";
 import CorporateMapping from "./CorporateMapping";
 import { AdminLabCases, AdminLabsUsers } from "./portal/AdminPortal";
-import type { PortalUser } from "./portal/api";
+import type { PortalUser, WorkspaceRef } from "./portal/api";
+import { WorkspaceSwitcher } from "./portal/WorkspaceSwitcher";
+import { ThemeToggle } from "./lib/theme";
 import { OrdersPage } from "./Calendar";
 import IntegrationLogs from "./IntegrationLogs";
 import { OverviewPage, OrganizationsPage, IntegrationsPage } from "./PlatformPages";
@@ -137,10 +140,43 @@ function PartnerAccess() {
   </div>;
 }
 
-type AppProps = { user: PortalUser; modules?: string[]; superAdmin?: boolean; onLogout: () => void; onChangePassword: () => void };
+type NavId = PageId | "overview";
+const navItem = (id: PageId, icon: typeof LayoutDashboard) => ({ id, label: PAGES[id].label, icon });
+const NAV_SECTIONS = [
+  { id: "integrations", label: "Integrations", group: "INTEGRATION PRODUCTS", items: [
+    navItem("integration-hub", Network),
+    navItem("connector-framework", Cable),
+    navItem("integrations", Workflow),
+    navItem("integration-studio", GitCompareArrows),
+    navItem("connector-marketplace", Plug),
+    navItem("core-layers", Layers)
+  ] },
+  { id: "labs", label: "Labs", group: "LABS & CATALOGUE", items: [
+    navItem("lab-cases", ClipboardList),
+    navItem("labs-users", Building2),
+    navItem("organizations", FlaskConical),
+    navItem("test-catalog", FileSpreadsheet),
+    navItem("corporate-mapping", Building2),
+    navItem("test-builder", Wand2)
+  ] },
+  { id: "orders", label: "Orders", group: "ORDERS & DATA", items: [
+    navItem("orders-bookings", FileCheck2),
+    navItem("booking-tracker", ListChecks),
+    navItem("results-smart-reports", FileText),
+    navItem("booking-calendar", CalendarDays),
+    navItem("transactions-logs", Activity)
+  ] },
+  { id: "developers", label: "Developers", group: "DEVELOPERS", items: [
+    navItem("api-webhooks", Code2),
+    navItem("partner-access", KeyRound),
+    navItem("monitoring-sla", Gauge)
+  ] }
+];
+type WorkspaceView = { list: WorkspaceRef[]; activeId: string | null; scoped: boolean };
+type AppProps = { user: PortalUser; modules?: string[]; pages?: PageId[]; superAdmin?: boolean; workspace?: WorkspaceView; onLogout: () => void; onChangePassword: () => void };
 
-function App({ user, modules = [], superAdmin = false, onLogout, onChangePassword }: AppProps) {
-  const [activeNav, setActiveNav] = useState("Integration Studio");
+function App({ user, modules = [], pages = [], superAdmin = false, workspace = { list: [], activeId: null, scoped: false }, onLogout, onChangePassword }: AppProps) {
+  const [requestedNav, setRequestedNav] = useState<NavId>("integration-studio");
   const [sandboxOn, setSandboxOn] = useState(() =>
     typeof window === "undefined" ? true : window.localStorage.getItem("healjour:sandbox") !== "off"
   );
@@ -165,56 +201,19 @@ function App({ user, modules = [], superAdmin = false, onLogout, onChangePasswor
     window.localStorage.setItem("healjour:sandbox", sandboxOn ? "on" : "off");
   }, [sandboxOn]);
 
-  // Top navbar sections; the sidebar lists the pages of the active section.
-  const allSections = [
-    { id: "integrations", label: "Integrations", group: "INTEGRATION PRODUCTS", items: [
-      { label: "Integration Hub", icon: Network },
-      { label: "Connector Framework", icon: Cable },
-      { label: "Integrations", icon: Workflow },
-      { label: "Integration Studio", icon: GitCompareArrows },
-      { label: "Connector Marketplace", icon: Plug },
-      { label: "Core Layers", icon: Layers }
-    ] },
-    { id: "labs", label: "Labs", group: "LABS & CATALOGUE", items: [
-      { label: "Lab Cases", icon: ClipboardList },
-      { label: "Labs & Users", icon: Building2 },
-      { label: "Organizations", icon: FlaskConical },
-      { label: "Test Catalog", icon: FileSpreadsheet },
-      { label: "Corporate Mapping", icon: Building2 },
-      { label: "Test Builder", icon: Wand2 }
-    ] },
-    { id: "orders", label: "Orders", group: "ORDERS & DATA", items: [
-      { label: "Orders & Bookings", icon: FileCheck2 },
-      { label: "Booking Tracker", icon: ListChecks },
-      { label: "Results & Smart Reports", icon: FileText },
-      { label: "Booking Calendar", icon: CalendarDays },
-      { label: "Transactions & Logs", icon: Activity }
-    ] },
-    { id: "developers", label: "Developers", group: "DEVELOPERS", items: [
-      { label: "API & Webhooks", icon: Code2 },
-      { label: "Partner Access", icon: KeyRound },
-      { label: "Monitoring & SLA", icon: Gauge }
-    ] }
+  const canSee = (id: NavId) => id === "overview" || superAdmin || (modules.includes(PAGES[id].module) && pages.includes(id));
+  const activeNav = canSee(requestedNav) ? requestedNav : "overview";
+  const sections = NAV_SECTIONS.map(s => ({ ...s, items: s.items.filter(i => canSee(i.id)) })).filter(s => s.items.length > 0);
+  const navItems = [
+    { id: "overview" as const, label: "Overview", icon: LayoutDashboard },
+    ...sections.flatMap(s => s.items),
+    ...(canSee("settings") ? [navItem("settings", Settings2)] : [])
   ];
-  // Each page belongs to a module; an admin sees only the modules their role allows (the server enforces the same).
-  const NAV_MODULE: Record<string, string> = {
-    "Integration Hub": "integrations", "Connector Framework": "integrations", "Integrations": "integrations", "Integration Studio": "integrations",
-    "Connector Marketplace": "integrations", "Core Layers": "integrations",
-    "Lab Cases": "labs", "Labs & Users": "labs", "Organizations": "labs",
-    "Test Catalog": "catalog", "Corporate Mapping": "catalog", "Test Builder": "catalog",
-    "Orders & Bookings": "orders", "Booking Tracker": "orders", "Results & Smart Reports": "orders", "Booking Calendar": "orders",
-    "Transactions & Logs": "logs", "API & Webhooks": "developers", "Partner Access": "developers", "Monitoring & SLA": "developers",
-    "Settings": "settings"
+  const activeSection = sections.find(s => s.items.some(i => i.id === activeNav));
+  const go = (id: NavId) => {
+    if (canSee(id)) setRequestedNav(id);
+    setNotice("");
   };
-  const canSee = (label: string) => label === "Overview" || !NAV_MODULE[label] || superAdmin || modules.includes(NAV_MODULE[label]);
-  const sections = allSections.map(s => ({ ...s, items: s.items.filter(i => canSee(i.label)) })).filter(s => s.items.length > 0);
-  const navItems = [{ label: "Overview", icon: LayoutDashboard }, ...sections.flatMap(s => s.items), ...(canSee("Settings") ? [{ label: "Settings", icon: Settings2 }] : [])];
-  // A page the role does not allow is never shown: fall back to Home.
-  useEffect(() => { if (!canSee(activeNav)) setActiveNav("Overview"); }, [activeNav, modules.join(","), superAdmin]);
-  const activeSection = sections.find(s => s.items.some(i => i.label === activeNav)) ?? null;
-  const [sectionId, setSectionId] = useState<string>(() => "integrations");
-  useEffect(() => { if (activeSection) setSectionId(activeSection.id); }, [activeSection?.id]);
-  const go = (label: string) => { setActiveNav(label); setNotice(""); };
   const [search, setSearch] = useState("");
   const matches = search.trim() ? navItems.filter(i => i.label.toLowerCase().includes(search.trim().toLowerCase())).slice(0, 6) : [];
 
@@ -308,25 +307,25 @@ function App({ user, modules = [], superAdmin = false, onLogout, onChangePasswor
     setStep(s => Math.min(4, s + 1) as Step);
   };
 
-  const isWizard = activeNav === "Integration Studio";
-
   return (
     <SidebarProvider className="app-shell rz" style={{ "--sidebar-width": "256px", "--sidebar-width-icon": "60px" } as CSSProperties}>
       {/* Top navbar: brand, product sections, search, notifications, account */}
       <header className="rz-topnav">
-        <div className="rz-brand" onClick={() => go("Overview")}><span className="rz-brand-mark"><Workflow size={16} /></span><b>healjour</b></div>
+        <div className="rz-brand" onClick={() => go("overview")}><img src="/healjour-logo.png" alt="Healjour" /></div>
         <nav className="rz-sections" aria-label="Sections">
-          {sections.map(s => <button key={s.id} type="button" className={sectionId === s.id ? "on" : ""} onClick={() => { setSectionId(s.id); go(s.items[0].label); }}>{s.label}</button>)}
+          {sections.map(s => <button key={s.id} type="button" className={activeSection?.id === s.id ? "on" : ""} onClick={() => go(s.items[0].id)}>{s.label}</button>)}
         </nav>
         <div className="rz-search">
           <Search size={15} />
           <input placeholder="Search pages and settings" value={search} onChange={e => setSearch(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && matches[0]) { go(matches[0].label); setSearch(""); } if (e.key === "Escape") setSearch(""); }} aria-label="Search pages" />
-          {matches.length > 0 && <ul className="rz-search-results">{matches.map(m => { const Icon = m.icon; return <li key={m.label}><button type="button" onClick={() => { go(m.label); setSearch(""); }}><Icon size={14} /> {m.label}</button></li>; })}</ul>}
+            onKeyDown={e => { if (e.key === "Enter" && matches[0]) { go(matches[0].id); setSearch(""); } if (e.key === "Escape") setSearch(""); }} aria-label="Search pages" />
+          {matches.length > 0 && <ul className="rz-search-results">{matches.map(m => { const Icon = m.icon; return <li key={m.id}><button type="button" onClick={() => { go(m.id); setSearch(""); }}><Icon size={14} /> {m.label}</button></li>; })}</ul>}
         </div>
         <div className="rz-actions">
+          <WorkspaceSwitcher workspaces={workspace.list} activeId={workspace.activeId} scoped={workspace.scoped} />
+          <ThemeToggle />
           {superAdmin && <a className="rz-super-link" href="/superadmin" title="Open the Super Admin console"><ShieldCheck size={15} /> Super Admin</a>}
-          <NotificationBell />
+          {(canSee("lab-cases") || canSee("results-smart-reports")) && <NotificationBell />}
           <button type="button" className="rz-icon" aria-label="Help" title="Help"><CircleHelp size={17} /></button>
           <div className="rz-avatar" title={user.name}>{user.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase()}</div>
         </div>
@@ -347,21 +346,21 @@ function App({ user, modules = [], superAdmin = false, onLogout, onChangePasswor
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton isActive={activeNav === "Overview"} tooltip="Home" onClick={() => go("Overview")}><LayoutDashboard size={17}/><span>Home</span></SidebarMenuButton>
+                  <SidebarMenuButton isActive={activeNav === "overview"} tooltip="Home" onClick={() => go("overview")}><LayoutDashboard size={17}/><span>Home</span></SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-          {/* Every section is always listed, so no page is hidden when the top tabs are not visible (small screens). */}
-          {sections.map(section => <SidebarGroup key={section.id} className={sectionId === section.id ? "rz-group-on" : ""}>
+          {/* Show every permitted section on small screens as well as in the top navigation. */}
+          {sections.map(section => <SidebarGroup key={section.id} className={activeSection?.id === section.id ? "rz-group-on" : ""}>
             <SidebarGroupLabel className="nav-label">{section.group}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {section.items.map(item => {
                   const Icon = item.icon;
-                  return <SidebarMenuItem key={item.label}>
-                    <SidebarMenuButton isActive={activeNav === item.label} tooltip={item.label} onClick={() => go(item.label)}>
-                      <Icon size={17}/><span>{item.label}</span>{item.label === "Integration Hub" && <span className="rz-new">New</span>}
+                  return <SidebarMenuItem key={item.id}>
+                    <SidebarMenuButton isActive={activeNav === item.id} tooltip={item.label} onClick={() => go(item.id)}>
+                      <Icon size={17}/><span>{item.label}</span>{item.id === "integration-hub" && <span className="rz-new">New</span>}
                     </SidebarMenuButton>
                   </SidebarMenuItem>;
                 })}
@@ -373,7 +372,7 @@ function App({ user, modules = [], superAdmin = false, onLogout, onChangePasswor
           <div className="rz-env-row"><ShieldCheck size={16}/><span>Sandbox environment</span><span className={`rz-env-badge ${sandboxOn ? "is-on" : "is-off"}`}>{sandboxOn ? "ON" : "OFF"}</span></div>
           <SidebarMenu>
             <SidebarMenuItem>
-              {canSee("Settings") && <SidebarMenuButton isActive={activeNav === "Settings"} tooltip="Account & Settings" onClick={() => go("Settings")}><Settings2 size={17}/><span>Account &amp; Settings</span></SidebarMenuButton>}
+              {canSee("settings") && <SidebarMenuButton isActive={activeNav === "settings"} tooltip="Account & Settings" onClick={() => go("settings")}><Settings2 size={17}/><span>Account &amp; Settings</span></SidebarMenuButton>}
             </SidebarMenuItem>
           </SidebarMenu>
           <div className="user-profile"><div className="user-avatar">{user.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase()}</div><div><b>{user.name}</b><small>{superAdmin ? "Super Admin" : "Healjour admin"}</small></div>
@@ -385,10 +384,35 @@ function App({ user, modules = [], superAdmin = false, onLogout, onChangePasswor
 
       <main className="main">
         <header className="topbar">
-          <div className="breadcrumbs"><SidebarTrigger /> {activeSection ? activeSection.label : "Home"} <span>/</span> <b>{activeNav === "Overview" ? "Home" : activeNav}</b></div>
+          <div className="breadcrumbs"><SidebarTrigger /> {activeSection?.label ?? "Home"} <span>/</span> <b>{activeNav === "overview" ? "Home" : PAGES[activeNav].label}</b></div>
         </header>
 
-        {activeNav === "Overview" ? <OverviewPage /> :  activeNav === "Monitoring & SLA" ? <MonitoringPage /> : activeNav === "API & Webhooks" ? <ApiPage /> : activeNav === "Settings" ? <SettingsPage /> : activeNav === "Connector Marketplace" ? <MarketplacePage /> : activeNav === "Organizations" ? <OrganizationsPage /> : activeNav === "Integrations" ? <IntegrationsPage /> : activeNav === "Connector Framework" ? <ConnectorFramework /> : activeNav === "Integration Hub" ? <IntegrationHub /> : activeNav === "Core Layers" ? <CoreLayers /> : activeNav === "Test Catalog" ? <TestCatalog /> : activeNav === "Corporate Mapping" ? <CorporateMapping /> : activeNav === "Test Builder" ? <TestBuilder /> : activeNav === "Lab Cases" ? <AdminLabCases /> : activeNav === "Labs & Users" ? <AdminLabsUsers me={user} /> : activeNav === "Orders & Bookings" ? <OrdersPage key="book" /> : activeNav === "Booking Tracker" ? <OrdersPage key="tracker" initialTab="tracker" /> : activeNav === "Results & Smart Reports" ? <OrdersPage key="results" initialTab="results" /> : activeNav === "Booking Calendar" ? <OrdersPage key="calendar" initialTab="calendar" /> : activeNav === "Transactions & Logs" ? <IntegrationLogs /> : activeNav === "Partner Access" ? <PartnerAccess /> : isWizard ? <div className="content">
+        {activeNav === "overview" ? <OverviewPage
+          showConnections={canSee("organizations") || canSee("test-catalog") || canSee("integrations")}
+          showCatalog={canSee("test-catalog")}
+          showLogs={canSee("transactions-logs")}
+        /> :
+          activeNav === "monitoring-sla" ? <MonitoringPage /> :
+          activeNav === "api-webhooks" ? <ApiPage /> :
+          activeNav === "settings" ? <SettingsPage /> :
+          activeNav === "connector-marketplace" ? <MarketplacePage /> :
+          activeNav === "organizations" ? <OrganizationsPage /> :
+          activeNav === "integrations" ? <IntegrationsPage /> :
+          activeNav === "connector-framework" ? <ConnectorFramework /> :
+          activeNav === "integration-hub" ? <IntegrationHub /> :
+          activeNav === "core-layers" ? <CoreLayers /> :
+          activeNav === "test-catalog" ? <TestCatalog canPrebook={canSee("orders-bookings")} /> :
+          activeNav === "corporate-mapping" ? <CorporateMapping /> :
+          activeNav === "test-builder" ? <TestBuilder /> :
+          activeNav === "lab-cases" ? <AdminLabCases /> :
+          activeNav === "labs-users" ? <AdminLabsUsers me={user} /> :
+          activeNav === "orders-bookings" ? <OrdersPage key="book" canSeePage={canSee} /> :
+          activeNav === "booking-tracker" ? <OrdersPage key="tracker" initialTab="tracker" canSeePage={canSee} /> :
+          activeNav === "results-smart-reports" ? <OrdersPage key="results" initialTab="results" canSeePage={canSee} /> :
+          activeNav === "booking-calendar" ? <OrdersPage key="calendar" initialTab="calendar" canSeePage={canSee} /> :
+          activeNav === "transactions-logs" ? <IntegrationLogs /> :
+          activeNav === "partner-access" ? <PartnerAccess /> :
+          activeNav === "integration-studio" && <div className="content">
           <div className="page-heading">
             <div><div className="eyebrow">INTEGRATION CONFIGURATION</div><h1>Create integration</h1><p>Set up how Healjour and a lab exchange CSV files, one simple step at a time.</p></div>
             <div className="heading-actions"><Button variant="outline" onClick={() => {setStep(0); setNotice("Wizard reset to step 1.");}}> <RefreshCw size={16}/> Reset wizard</Button><Button variant="default" onClick={saveDraft}><Save size={16}/> Save draft</Button></div>
@@ -489,9 +513,6 @@ function App({ user, modules = [], superAdmin = false, onLogout, onChangePasswor
             </section>
           </div>
           <div className="bottom-footnote"><ShieldCheck size={15}/> Healthcare data safeguards enabled in the design · Use synthetic data for sandbox testing.</div>
-        </div> : <div className="content placeholder-page">
-          <div className="page-heading"><div><div className="eyebrow">HEALJOUR INTEGRATION HUB</div><h1>{activeNav}</h1><p>This area is part of the proposed product navigation.</p></div><Button variant="default" onClick={() => setActiveNav("Integration Studio")}><Plus size={16}/> Open Integration Studio</Button></div>
-          <div className="placeholder-card"><div className="summary-icon"><Workflow size={24}/></div><h2>{activeNav}</h2><p>This prototype currently implements the Integration Studio configuration wizard. Other modules are navigation placeholders, not implemented production features.</p><Button variant="outline" onClick={() => setActiveNav("Integration Studio")}>Return to wizard <ArrowRight size={15}/></Button></div>
         </div>}
       </main>
     </SidebarProvider>

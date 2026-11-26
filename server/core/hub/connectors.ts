@@ -25,6 +25,7 @@ add({
   retry: DEFAULT_RETRY, rateLimit: { requests: 20, perMs: 1000 }, timeoutMs: 15_000,
   operations: {
     createPaymentLink: { method: "POST", description: "Create a payment link", paths: { v1: "/v1/payment_links" } },
+    getPaymentLink: { method: "GET", description: "Fetch a payment link and its payments", paths: { v1: "/v1/payment_links/{linkId}" } },
     refund: { method: "POST", description: "Refund a payment (full or partial)", paths: { v1: "/v1/payments/{paymentId}/refund" } },
     settlements: { method: "GET", description: "Settlement report for reconciliation", paths: { v1: "/v1/settlements/recon/combined" } }
   }

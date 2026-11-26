@@ -1,0 +1,98 @@
+/* Night mode: hand-tuned rules on top of the generated colour tokens (dark-tokens.css). */
+
+html.dark body { background: #0e111a; color: #dbe1ec; }
+
+/* Form fields that rely on browser defaults */
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html.dark select,
+html.dark textarea { background-color: #151a26; color: #e5e9f2; border-color: #2a3243; }
+html.dark input::placeholder, html.dark textarea::placeholder { color: #6b778c; }
+html.dark select option { background: #151a26; color: #e5e9f2; }
+
+/* Tailwind utilities used directly in components */
+html.dark .bg-white:not([data-slot="button"]) { background-color: #171c28; }
+html.dark .bg-violet-50\/60 { background-color: #1f1a33; }
+
+/* Calm scrollbars */
+html.dark ::-webkit-scrollbar { width: 10px; height: 10px; }
+html.dark ::-webkit-scrollbar-thumb { background: #2a3243; border-radius: 8px; border: 2px solid #0e111a; }
+html.dark ::-webkit-scrollbar-track { background: transparent; }
+
+/* Logos and photos keep their real colours */
+html.dark img { color-scheme: light; }
+
+/* Lab Portal → API (works in both themes: colours come from currentColor and the converted tokens) */
+.lab-api-docs{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;text-decoration:none;color:#2d5cf2;white-space:nowrap}
+html.dark .lab-api-docs{color:#8aa4ff}
+.lab-api-new{display:flex;gap:8px;margin:12px 0}
+.lab-api-new input,.lab-api-hookform input[type=text],.lab-api-hookform>input{flex:1;max-width:360px;border:1px solid #dce3ec;border-radius:8px;padding:8px 10px;font:inherit;font-size:13px}
+.lab-api-empty{font-size:13.5px;color:#64748b}
+.lab-api-app{border:1px solid #e3e9f2;border-radius:12px;padding:12px 14px;margin-top:10px}
+html.dark .lab-api-app{border-color:#2a3243}
+.lab-api-app.off{opacity:.6}
+.lab-api-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.lab-api-head small{font-size:12px;color:#64748b;display:inline-flex;align-items:center;gap:4px}
+.lab-api-head code{font-size:11.5px}
+.lab-api-actions{margin-left:auto;display:flex;gap:6px}
+.lab-api-hooks{margin-top:10px;padding-top:10px;border-top:1px dashed #e3e9f2;display:grid;gap:6px;font-size:13px}
+html.dark .lab-api-hooks{border-top-color:#2a3243}
+.lab-api-hook{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.lab-api-hook small{color:#64748b}
+.lab-api-hookform{display:grid;gap:8px}
+.lab-api-hookform>div:not(.builder-actions){display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px}
+.lab-api-hookform label{display:inline-flex;align-items:center;gap:5px}
+
+/* Super Console → Daily health check */
+.hc-switch{font-weight:700;font-size:14px;align-self:flex-start}
+.hc-warn{display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border-radius:10px;background:#fffbeb;border:1px solid #fcd34d;color:#78350f;font-size:13px;line-height:1.5;margin:4px 0 14px}
+html.dark .hc-warn{background:#2a2210;border-color:#78350f;color:#fde68a}
+.hc-warn svg{flex-shrink:0;margin-top:2px}
+.hc-row{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end;margin-bottom:6px}
+.hc-row .field{min-width:180px}
+.hc-meta{display:grid;gap:2px;font-size:13px}
+.hc-meta small{color:#64748b;font-size:11.5px}
+.hc-h{margin:18px 0 8px;font-size:14px}
+.hc-actions{margin-top:16px;align-items:center}
+.hc-run{border:1px solid #e3e9f2;border-radius:10px;padding:10px 12px;margin-top:8px}
+html.dark .hc-run{border-color:#2a3243}
+.hc-run-head{display:flex;align-items:center;gap:8px}
+.hc-run-head small{color:#64748b}
+.hc-run ul{margin:6px 0 0;padding-left:22px;font-size:13px;line-height:1.6}
+.hc-run li.bad{color:#b91c1c}
+html.dark .hc-run li.bad{color:#fca5a5}
+.hc-ok{color:#16a34a}.hc-bad{color:#dc2626}
+.hc-need{display:flex!important;align-items:center;gap:4px;font-size:11.5px;color:#92400e;margin-top:4px;white-space:normal}
+.hc-need.on{color:#b91c1c;font-weight:600}
+html.dark .hc-need{color:#fcd34d}html.dark .hc-need.on{color:#fca5a5}
+
+/* Super Console → Scheduled jobs */
+.job-card.off{opacity:.8}
+.job-head{display:flex;gap:16px;align-items:flex-start}
+.job-title{flex:1;min-width:0}
+.job-title h2{margin:0 0 4px}
+.job-title p{margin:0;font-size:13px;color:#64748b;line-height:1.5}
+.job-switch{display:inline-flex;align-items:center;gap:8px;border:1px solid #d7dfeb;background:#f8fafc;color:#475569;border-radius:999px;padding:4px 12px 4px 4px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0}
+.job-switch span{width:34px;height:20px;border-radius:999px;background:#cbd5e1;position:relative;transition:background .15s}
+.job-switch span::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0003;transition:transform .15s}
+.job-switch.on{border-color:#86efac;background:#f0fdf4;color:#166534}
+.job-switch.on span{background:#22c55e}
+.job-switch.on span::after{transform:translateX(14px)}
+html.dark .job-switch{border-color:#2a3243;background:#151a26;color:#aab4c6}
+html.dark .job-switch.on{border-color:#166534;background:#0f2a1c;color:#86efac}
+.job-facts{display:flex;flex-wrap:wrap;gap:12px 28px;align-items:flex-end;margin:14px 0 6px}
+.job-facts>div{display:grid;gap:2px;font-size:13px}
+.job-facts small{color:#64748b;font-size:11.5px}
+.job-facts b{display:inline-flex;align-items:center;gap:5px}
+.job-ok{color:#15803d}.job-bad{color:#b91c1c}
+html.dark .job-ok{color:#86efac}html.dark .job-bad{color:#fca5a5}
+.job-actions{display:flex!important;grid-auto-flow:column;gap:8px!important;margin-left:auto}
+.job-history{margin-top:8px}
+.job-toggle{display:inline-flex;align-items:center;gap:4px;border:0;background:none;color:#475569;font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:0}
+html.dark .job-toggle{color:#aab4c6}
+
+/* Theme button */
+.theme-toggle{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:9px;border:1px solid #ffffff22;background:#ffffff0f;color:#cbd5e1;cursor:pointer}
+.theme-toggle:hover{background:#ffffff1f;color:#fff}
+.theme-toggle.on-light{border-color:#e3e8f0;background:#fff;color:#475569}
+.theme-toggle.on-light:hover{background:#f1f5f9;color:#0f172a}
+html.dark .theme-toggle.on-light{border-color:#2a3243;background:#171c28;color:#cbd5e1}

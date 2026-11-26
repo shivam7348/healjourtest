@@ -3,6 +3,7 @@ import { CheckCircle2, ClipboardList, FileText, FlaskConical, Inbox, RefreshCw, 
 import { Button } from "@/components/ui/button";
 import { api, fmtDate, type CaseStatus, type CaseSummary, type PortalLab, type Role } from "./api";
 import { CaseDetail, StatusChip } from "./CaseDetail";
+import { CreatedBy, WorkspaceTag } from "../lib/record-tags";
 
 type Filter = "open" | "new" | "progress" | "report_ready" | "done" | "all";
 const IN_PROGRESS: CaseStatus[] = ["accepted", "sample_collected", "processing"];
@@ -87,7 +88,8 @@ export function CasesBoard({ role, labs, reloadKey }: { role: Role; labs?: Porta
                   {c.priority !== "routine" && <span className={`prio ${c.priority}`}>{c.priority}</span>}
                   {admin && c.unseen && <span className="unseen-dot" title="New update from the lab" />}
                 </span>
-                <small>{c.caseNo} · {shortAge(c)}{admin ? ` · ${c.labName}` : ""}</small>
+                <small>{c.caseNo} · {shortAge(c)}{admin ? ` · ${c.labName}` : ""}{admin && <> <WorkspaceTag workspace={c.workspace} compact /></>}</small>
+                {admin && <CreatedBy label="Sent by" creator={c.creator} />}
                 <span className="case-row-tests">{c.tests.slice(0, 3).map(t => <span key={t.code}>{t.code}</span>)}{c.tests.length > 3 && <span>+{c.tests.length - 3}</span>}</span>
               </span>
               <span className="case-row-side">

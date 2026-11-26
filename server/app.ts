@@ -1,5 +1,5 @@
 import express from "express";
-import { allowedPermissions, getSystemSettings, isSuperAdmin, MODULES, permissionForRequest } from "./core/portal/access.js";
+import { allowedAdminAccess, getSystemSettings, isSuperAdmin, MODULES, normalizeApiPath, PAGES, pagesForPath, permissionForRequest, type PageId } from "./core/portal/access.js";
 import { registerSuperRoutes } from "./super-routes.js";
 import { publicBaseUrl } from "./core/public-url.js";
 import cors from "cors";
@@ -9,8 +9,8 @@ import { connectorCatalog } from "./core/connectors.js";
 import { listAudit, listPatients, setConsent, verifyAuditChain } from "./core/identity.js";
 import { listDeadLetters, listRuns, replayDeadLetter, sinkCatalog } from "./core/orchestration.js";
 import { coreTopology, runPipeline, samplePayloads } from "./core/pipeline.js";
-import { connectStore, getStore } from "./core/store.js";
-import type { PartnerLab, StudioIntegration } from "./core/models.js";
+import { connectStore, getStore, onStoreReconnected } from "./core/store.js";
+import type { Appointment, PartnerLab, StudioIntegration } from "./core/models.js";
 import { deleteWebhook, listPackages, listTests, listCorporates, listWebhooks, PARTY_REQUIRED_HINT, subscribeWebhook, testFlabsConnection } from "./core/flabs/client.js";
 import { FLABS_EVENTS, handleFlabsEvent, saveResultRecord, type FlabsEvent, type FlabsResultRecord } from "./core/flabs/webhooks.js";
 import { buildSmartReport, renderSmartReportHtml, type ParameterRange } from "./core/flabs/smartReport.js";
@@ -30,8 +30,14 @@ import { aiStatus, draftTests, suggestMatches } from "./core/test-builder.js";
 import { registerPortalRoutes } from "./portal-routes.js";
 import { registerFrameworkRoutes } from "./framework-routes.js";
 import { registerHubRoutes } from "./hub-routes.js";
+import { registerDevPlatformRoutes } from "./devplatform-routes.js";
+import { startScheduler } from "./core/hub/scheduler.js";
 import { linkBookingToLead } from "./core/hub/leads.js";
 import { can, currentUser } from "./core/portal/auth.js";
+import { actorOf, runWithActor, type Actor } from "./core/portal/actor.js";
+import {
+  addToWorkspace, bookingConnectionId, canSeeAccount, canSeeConnection, removeFromWorkspaces, requestScope, targetWorkspace, workspaceTagger
+} from "./core/portal/tenancy.js";
 import { recordAudit } from "./core/identity.js";
 import { logIntegration } from "./core/logs.js";
 import { generateEncryptionKey, loadSettingsFile, setPublicBaseUrl, settingsStatus } from "./core/settings.js";
@@ -42,6 +48,9 @@ const storageInfo = () => {
 };
 
 const app = express();
+declare module "express-serve-static-core" {
+  interface Request { adminPages?: readonly PageId[] }
+}
 app.use(cors());
 // 5 MB: lab reports are uploaded as base64 JSON (files up to 3 MB).
 // The raw body is kept so webhook signatures (Razorpay, Meta) can be checked over the exact bytes received.
@@ -49,11 +58,20 @@ const keepRaw = (req: express.Request, _res: express.Response, buf: Buffer) => {
 app.use(express.json({ limit: "5mb", verify: keepRaw }));
 app.use(express.urlencoded({ extended: false, limit: "1mb", verify: keepRaw })); // Exotel callbacks and OAuth token requests are form-encoded
 
+// Every request runs with its actor (signed-in user, plus the Super Admin behind a "Login as" session),
+// so audit entries and "created by" stamps name the right people.
+app.use(async (req, _res, next) => {
+  try { await currentUser(req); } catch { /* route guards report sign-in problems */ }
+  runWithActor(req.actor, next);
+});
+
 // Sign-in and the Lab Portal check their own permissions. Everything else under /api is for Healjour admins only.
 // Webhooks, the App Store OAuth/app API and cron each authenticate on their own (signature, token or secret).
-const OPEN_API = ["/api/health", "/api/auth/", "/api/portal/", "/api/webhooks/", "/api/appstore/oauth/", "/api/apps/v1/", "/api/cron/"];
+// The public API (/api/v1) and the developer console (/api/developer) check their own token or session.
+const OPEN_API = ["/api/health", "/api/auth/", "/api/portal/", "/api/webhooks/", "/api/appstore/oauth/", "/api/apps/v1/", "/api/cron/", "/api/v1/", "/api/developer/"];
 app.use(async (req, res, next) => {
-  if (!req.path.startsWith("/api/") || OPEN_API.some(p => req.path === p || req.path.startsWith(p))) return next();
+  const path = normalizeApiPath(req.path);
+  if (!path.startsWith("/api/") || OPEN_API.some(p => path === p || (p.endsWith("/") && path.startsWith(p)))) return next();
   try {
     const user = await currentUser(req);
     if (!user) return res.status(401).json({ error: "Please sign in." });
@@ -67,21 +85,58 @@ app.use(async (req, res, next) => {
 // Admin RBAC: every admin API call needs "<module>.<action>" from the admin's role; /api/super is Super Admin only.
 // Maintenance mode lets only Super Admins in.
 app.use(async (req, res, next) => {
-  if (!req.path.startsWith("/api/")) return next();
-  const superPath = req.path === "/api/super" || req.path.startsWith("/api/super/");
-  const permission = permissionForRequest(req.method, req.path, req.query as Record<string, unknown>);
+  const path = normalizeApiPath(req.path);
+  if (!path.startsWith("/api/")) return next();
+  const superPath = path === "/api/super" || path.startsWith("/api/super/");
   try {
     const user = req.portalUser ?? await currentUser(req);
     if (!user) return next();                                          // route guards answer 401
+    if (user.role === "healjour_admin") res.setHeader("Cache-Control", "private, no-store");
     if (isSuperAdmin(user)) return next();
     if (superPath) return res.status(403).json({ error: "Only a Super Admin can do this." });
-    if (!req.path.startsWith("/api/auth/") && (await getSystemSettings()).maintenance) {
-      return res.status(503).json({ error: (await getSystemSettings()).maintenanceMessage });
+    if (!path.startsWith("/api/auth/")) {
+      const system = await getSystemSettings();
+      if (system.maintenance) return res.status(503).json({ error: system.maintenanceMessage });
     }
-    if (user.role !== "healjour_admin" || !permission) return next();  // lab users: their lab role decides
-    if (!(await allowedPermissions(user)).includes(permission)) {
+    if (user.role !== "healjour_admin") return next();                 // lab users: their lab role decides
+    const owners = pagesForPath(req.method, path);
+    const permission = permissionForRequest(req.method, path, req.query as Record<string, unknown>, owners);
+    if (!owners.length && !permission) return next();
+    const access = await allowedAdminAccess(user);
+    req.adminPages = access.pages;
+    if (owners.length && !owners.some(page => access.pages.includes(page))) {
+      const target = owners.length === 1 ? PAGES[owners[0]].label : "a page that uses this data";
+      return res.status(403).json({ error: `Your admin role cannot open ${target}.` });
+    }
+    if (permission && !access.permissions.includes(permission)) {
       const [mod, action] = permission.split(".") as [keyof typeof MODULES, string];
       return res.status(403).json({ error: `Your admin role cannot ${action} in ${MODULES[mod].label}.` });
+    }
+    next();
+  } catch (error) { next(error); }
+});
+// Tenancy: in a workspace view an admin reaches only that workspace's Flabs accounts, bookings and results.
+// Lists are filtered in their handlers; single records are checked here (404, so other tenants' IDs stay hidden).
+app.use(async (req, res, next) => {
+  const path = normalizeApiPath(req.path);
+  if (!path.startsWith("/api/") || ["/api/auth/", "/api/super/", "/api/webhooks/"].some(p => path.startsWith(p))) return next();
+  try {
+    const user = req.portalUser ?? await currentUser(req);
+    if (!user || user.role !== "healjour_admin") return next();
+    const scope = await requestScope(req);
+    if (scope.all) return next();
+    const parts = req.path.replace(/\/+$/, "").split("/").map(p => decodeURIComponent(p));
+    const hidden = () => res.status(404).json({ error: "Not found in your workspace." });
+    if (path.startsWith("/api/flabs/connections/") && !canSeeConnection(scope, parts[4])) return hidden();
+    if (path === "/api/flabs/booking-options" && !canSeeConnection(scope, bookingConnectionId(req.query.connectionId))) return hidden();
+    if ((path === "/api/flabs/bookings" || path === "/api/flabs/prebookings") && req.method === "POST" && !canSeeConnection(scope, bookingConnectionId(req.body?.connectionId))) return hidden();
+    if (path.startsWith("/api/appointments/")) {
+      const apt = (await getStore().listAppointments()).find(a => a.id === parts[3]);
+      if (apt && !canSeeAccount(scope, apt.account)) return hidden();
+    }
+    if (path.startsWith("/api/flabs/results/") && parts[4] !== "backfill") {
+      const rec = await getStore().docGet<FlabsResultRecord>("flabsResults", parts[4]);
+      if (rec && !canSeeAccount(scope, rec.account)) return hidden();
     }
     next();
   } catch (error) { next(error); }
@@ -90,6 +145,7 @@ registerPortalRoutes(app);
 registerFrameworkRoutes(app);
 registerSuperRoutes(app);
 registerHubRoutes(app);
+registerDevPlatformRoutes(app);
 
 const configSchema = z.object({
   name: z.string().trim().min(3).max(100),
@@ -708,16 +764,24 @@ const connectionSchema = z.object({
   makeDefault: z.boolean().optional()
 });
 
-async function withMappingCounts() {
-  return Promise.all(listConnectionViews().map(async view => ({
+// Who connected each Flabs account. Kept beside the account (the account record itself is the sealed login).
+const CONNECTION_META = "flabsConnectionMeta";
+type ConnectionMeta = { id: string; creator?: Actor; createdAt: string };
+
+async function withMappingCounts(req: express.Request) {
+  const scope = await requestScope(req);
+  const [tags, metas] = await Promise.all([workspaceTagger(), getStore().docList<ConnectionMeta>(CONNECTION_META)]);
+  return Promise.all(listConnectionViews().filter(view => canSeeConnection(scope, view.id)).map(async view => ({
     ...view,
     webhookRegistered: Boolean(getFlabsConfig(view.id)?.webhookToken),
-    mappedTests: (await getStore().listFlabsMappings(view.id)).length
+    mappedTests: (await getStore().listFlabsMappings(view.id)).length,
+    workspace: tags.connection(view.id),
+    creator: metas.find(m => m.id === view.id)?.creator ?? null
   })));
 }
 
-app.get("/api/flabs/connections", async (_req, res) => {
-  res.json({ connections: await withMappingCounts(), canPersistSecret: canPersistSecret() });
+app.get("/api/flabs/connections", async (req, res) => {
+  res.json({ connections: await withMappingCounts(req), canPersistSecret: canPersistSecret() });
 });
 
 // Step 1 of the form: check the credentials and list their branches. Nothing is saved.
@@ -737,17 +801,21 @@ app.post("/api/flabs/test", async (req, res) => {
 });
 
 // Step 2: create or update an account. The login is re-checked so a bad account is never stored.
-async function upsertConnection(id: string | undefined, body: unknown, res: express.Response) {
+async function upsertConnection(req: express.Request, id: string | undefined, body: unknown, res: express.Response) {
   const parsed = connectionSchema.safeParse(body);
   if (!parsed.success) {
     return res.status(400).json({ ok: false, error: parsed.error.issues.map(i => `${i.path.join(".") || "body"}: ${i.message}`).join(" ") });
   }
   const data = parsed.data;
+  const scope = await requestScope(req);
+  const workspace = targetWorkspace(scope);
+  if (workspace === "ambiguous") return res.status(400).json({ ok: false, error: "Pick one workspace in the workspace switcher first; the new account is added to it." });
   // Saving the same login + branch + party again updates that account instead of adding a duplicate card.
   if (!id && data.clientId) {
     const same = allFlabsConfigs().find(c =>
       c.clientId === data.clientId && (c.branchId ?? "") === data.branchId &&
       (c.party?.field ?? "") === (data.party?.field ?? "") && (c.party?.id ?? "") === (data.party?.id ?? ""));
+    if (same && !canSeeConnection(scope, same.id)) return res.status(409).json({ ok: false, error: "This Flabs login and branch is already connected in another workspace." });
     if (same) id = same.id;
   }
   const existing = id ? getFlabsConfig(id) : undefined;
@@ -759,6 +827,10 @@ async function upsertConnection(id: string | undefined, body: unknown, res: expr
   try {
     await testFlabsConnection({ clientId, clientSecret, baseUrl: data.baseUrl.replace(/\/$/, "") });
     const view = await saveFlabsConnection({ ...data, id, clientId, clientSecret, baseUrl: data.baseUrl, makeDefault: data.makeDefault });
+    if (workspace) await addToWorkspace(workspace, "connectionIds", view.id);
+    if (!(await getStore().docGet<ConnectionMeta>(CONNECTION_META, view.id))) {
+      await getStore().docPut<ConnectionMeta>(CONNECTION_META, { id: view.id, creator: actorOf(req), createdAt: new Date().toISOString() });
+    }
     const savedConfig = getFlabsConfig(view.id);
     const sync = savedConfig ? await ensureCatalogSynced(savedConfig, { force: true }) : null;
     await logIntegration({
@@ -780,22 +852,23 @@ async function upsertConnection(id: string | undefined, body: unknown, res: expr
   }
 }
 
-app.post("/api/flabs/connections", async (req, res) => upsertConnection(undefined, req.body, res));
-app.put("/api/flabs/connections/:id", async (req, res) => upsertConnection(req.params.id, req.body, res));
+app.post("/api/flabs/connections", async (req, res) => upsertConnection(req, undefined, req.body, res));
+app.put("/api/flabs/connections/:id", async (req, res) => upsertConnection(req, req.params.id, req.body, res));
 
 app.delete("/api/flabs/connections/:id", async (req, res) => {
   const label = getFlabsConfig(req.params.id)?.label ?? req.params.id;
   const removed = await deleteFlabsConnection(req.params.id);
   if (!removed) return res.status(404).json({ ok: false, error: "Connection not found." });
+  await removeFromWorkspaces("connectionIds", req.params.id);
   await logIntegration({ type: "account", status: "info", account: label, title: "Account removed", message: "Its orders will no longer be sent." });
-  res.json({ ok: true, connections: await withMappingCounts() });
+  res.json({ ok: true, connections: await withMappingCounts(req) });
 });
 
 app.post("/api/flabs/connections/:id/default", async (req, res) => {
   const view = await setDefaultConnection(req.params.id);
   if (!view) return res.status(404).json({ ok: false, error: "Connection not found." });
   await logIntegration({ type: "account", status: "info", account: view.label, title: "Default account changed", message: "New orders without a chosen account will go to this account." });
-  res.json({ ok: true, connections: await withMappingCounts() });
+  res.json({ ok: true, connections: await withMappingCounts(req) });
 });
 
 // Live call to Flabs "List Tests" for one account. Cost follows that account's party pricing.
@@ -935,7 +1008,7 @@ app.post("/api/flabs/bookings", async (req, res) => {
       contact: parsed.data.contact,
       tests: [...result.mappedTests, ...result.unmappedTests],
       bookingType: parsed.data.bookingType, address: parsed.data.address,
-      scheduledAt: parsed.data.scheduledAt, status: "unassigned", createdAt: nowIso, updatedAt: nowIso
+      scheduledAt: parsed.data.scheduledAt, status: "unassigned", createdAt: nowIso, updatedAt: nowIso, creator: actorOf(req)
     });
     // Enquiry → booking tracking: an open lead with this phone is marked booked.
     await linkBookingToLead(parsed.data.contact, result.integratorID).catch(() => null);
@@ -1046,7 +1119,7 @@ app.post("/api/flabs/prebookings", async (req, res) => {
       integratorID: result.integratorId, leadId: result.preBookingID, account: config.label,
       patientName, contact: "",
       tests: [...result.mappedTests, ...result.unmappedTests, ...result.mappedPackages, ...result.unmappedPackages],
-      bookingType: "Pre-booking", status: "unassigned", createdAt: nowIso, updatedAt: nowIso
+      bookingType: "Pre-booking", status: "unassigned", createdAt: nowIso, updatedAt: nowIso, creator: actorOf(req)
     });
     await logIntegration({
       type: "booking", status: "success", account: config.label,
@@ -1079,15 +1152,41 @@ app.post("/api/flabs/prebookings", async (req, res) => {
   }
 });
 
+async function visibleIntegrationLogs(req: express.Request, limit: number) {
+  const scope = await requestScope(req);
+  // A workspace view reads further back so the filtered list still has up to `limit` rows.
+  const tags = await workspaceTagger();
+  const logs = (scope.all ? await getStore().listIntegrationLogs(limit)
+    : (await getStore().listIntegrationLogs(Math.min(limit * 5, 5000))).filter(l => canSeeAccount(scope, l.account)).slice(0, limit))
+    .map(l => ({ ...l, workspace: tags.account(l.account) }));
+  if (canReadFlabsReports(req)) return logs;
+  return logs.map(log => {
+    if (log.type !== "webhook" || !log.details) return log;
+    return { ...log, details: log.details.filter(detail => !detail.startsWith("Report: ")) };
+  });
+}
+
 // Everything that happened with external systems, newest first, for the Logs screen.
 app.get("/api/logs", async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 200, 1000);
-  const logs = await getStore().listIntegrationLogs(limit);
+  const logs = await visibleIntegrationLogs(req, limit);
   const count = (status: string) => logs.filter(l => l.status === status).length;
   res.json({
     logs,
     summary: { total: logs.length, success: count("success"), duplicate: count("duplicate"), error: count("error"), info: count("info") },
     storage: storageInfo()
+  });
+});
+
+// Monitoring needs totals and failure summaries, without patient or transaction details.
+app.get("/api/monitoring/logs", async (req, res) => {
+  const scope = await requestScope(req);
+  const logs = (await getStore().listIntegrationLogs(300)).filter(l => canSeeAccount(scope, l.account));
+  res.json({
+    logs: logs.map(({ id, at, status, type, account, title, details }) => ({
+      id, at, status, type, account, title,
+      details: details?.filter(detail => /^Total time: \d+ms$/.test(detail))
+    }))
   });
 });
 
@@ -1098,7 +1197,7 @@ const csvCell = (value: unknown) => {
 };
 app.get("/api/logs/export", async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 1000, 5000);
-  const logs = await getStore().listIntegrationLogs(limit);
+  const logs = await visibleIntegrationLogs(req, limit);
   const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
   if (req.query.format === "json") {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -1225,17 +1324,39 @@ app.delete("/api/flabs/connections/:id/mappings/:kind/:code", async (req, res) =
   res.json({ ok: true, message: `${req.params.code} is no longer mapped.` });
 });
 
+function appointmentWithoutReport({ billId, reportUrl, reportAt, results, ...appointment }: Appointment) {
+  return appointment;
+}
+
+function canReadFlabsReports(req: express.Request) {
+  return isSuperAdmin(req.portalUser) || req.adminPages?.includes("results-smart-reports");
+}
+
 // Calendar: medical staff and the appointments they can be assigned to.
-app.get("/api/calendar", async (_req, res) => {
+app.get("/api/calendar", async (req, res) => {
   const store = getStore();
-  const [staff, appointments] = await Promise.all([store.listStaff(), store.listAppointments()]);
-  res.json({ staff, appointments });
+  const scope = await requestScope(req);
+  const [staff, all, tags] = await Promise.all([store.listStaff(), store.listAppointments(), workspaceTagger()]);
+  const appointments = all.filter(a => canSeeAccount(scope, a.account));
+  const shown = canReadFlabsReports(req) ? appointments : appointments.map(appointmentWithoutReport);
+  res.json({ staff, appointments: shown.map(a => ({ ...a, workspace: tags.account(a.account) })) });
+});
+
+// The booking tracker uses Flabs bookings without loading the calendar's staff or other appointments.
+app.get("/api/flabs/bookings", async (req, res) => {
+  const scope = await requestScope(req);
+  const tags = await workspaceTagger();
+  const appointments = (await getStore().listAppointments()).filter(a => a.integratorID && canSeeAccount(scope, a.account));
+  const shown = canReadFlabsReports(req) ? appointments : appointments.map(appointmentWithoutReport);
+  res.json({ appointments: shown.map(a => ({ ...a, workspace: tags.account(a.account) })) });
 });
 
 // Results tool: every Flabs result and report saved in Healjour's database, newest first.
-app.get("/api/flabs/results", async (_req, res) => {
-  const records = await getStore().docList<FlabsResultRecord>("flabsResults");
-  res.json({ records: records.sort((a, b) => b.receivedAt.localeCompare(a.receivedAt)) });
+app.get("/api/flabs/results", async (req, res) => {
+  const scope = await requestScope(req);
+  const tags = await workspaceTagger();
+  const records = (await getStore().docList<FlabsResultRecord>("flabsResults")).filter(r => canSeeAccount(scope, r.account));
+  res.json({ records: records.sort((a, b) => b.receivedAt.localeCompare(a.receivedAt)).map(r => ({ ...r, workspace: tags.account(r.account) })) });
 });
 
 // Reference ranges used to flag values in smart reports (set by admins; empty by default).
@@ -1432,10 +1553,13 @@ export function ensureReady(): Promise<void> {
   if (!ready) {
     ready = (async () => {
       loadSettingsFile();
+      onStoreReconnected(async () => { await loadFlabsConnections(); });
       await connectStore();
       await loadFlabsConnections();
       // Keep every account's test mapping fresh without anyone pressing "Sync".
       syncAllInBackground(allFlabsConfigs());
+      // Scheduled jobs (daily checks, reminders, booking health check) where there is no platform cron.
+      startScheduler();
     })().catch(error => {
       ready = null; // let the next request try again instead of failing forever
       throw error;

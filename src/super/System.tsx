@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { call, when, type Run } from "./parts";
+import { CreatedBy, WorkspaceTag, type CreatorData, type WorkspaceTagData } from "../lib/record-tags";
 
-type Lab = { id: string; code: string; name: string; city?: string; active: boolean; users: number; createdAt: string };
+type Lab = { id: string; code: string; name: string; city?: string; active: boolean; users: number; createdAt: string; creator?: CreatorData; workspace?: WorkspaceTagData };
 type System = { sessionHours: number; maintenance: boolean; maintenanceMessage: string; updatedAt?: string; updatedBy?: string };
 
 /** Pause or resume a whole partner lab. Pausing signs its users out and blocks their sign-in. */
@@ -18,9 +19,11 @@ export function LabsTab({ run }: { run: Run }) {
   return <section className="su-card">
     <div className="su-card-head"><div><h2>Partner labs</h2><p>Pausing a lab locks out all its users at once. Resume to let them back in.</p></div></div>
     <div className="su-table-wrap"><table className="su-table">
-      <thead><tr><th>Lab</th><th>Code</th><th>City</th><th>Users</th><th>Status</th><th /></tr></thead>
+      <thead><tr><th>Lab</th><th>Code</th><th>Workspace</th><th>City</th><th>Users</th><th>Status</th><th /></tr></thead>
       <tbody>{labs.map(l => <tr key={l.id}>
-        <td><b>{l.name}</b><small>since {when(l.createdAt)}</small></td><td><code>{l.code}</code></td><td>{l.city ?? "—"}</td><td>{l.users}</td>
+        <td><b>{l.name}</b><small>since {when(l.createdAt)}</small><small className="id-line">ID {l.id}</small><CreatedBy creator={l.creator} /></td><td><code>{l.code}</code></td>
+        <td>{l.workspace ? <WorkspaceTag workspace={l.workspace} /> : <span className="su-chip none">unassigned</span>}</td>
+        <td>{l.city ?? "—"}</td><td>{l.users}</td>
         <td><span className={`sa-pill ${l.active ? "ok" : "bad"}`}>{l.active ? "Active" : "Paused"}</span></td>
         <td><Button variant={l.active ? "destructive" : "outline"} size="sm" onClick={() => toggle(l)}>{l.active ? "Pause" : "Resume"}</Button></td>
       </tr>)}</tbody>

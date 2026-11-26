@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Building2, CheckCircle2, Plus, Send, X } from "lucide-react";
+import { Building2, CheckCircle2, Plus, Search, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api, type PortalLab, type PortalUser } from "./api";
 import { CasesBoard } from "./CasesBoard";
 import { TeamPanel } from "./TeamPanel";
+import { CreatedBy, WorkspaceTag } from "../lib/record-tags";
 
 type CatalogTest = { code: string; name: string; active: boolean };
 
@@ -29,9 +30,18 @@ function SendCaseForm({ labs, onSent }: { labs: PortalLab[]; onSent: () => void 
   const [tests, setTests] = useState<CatalogTest[]>([]);
   const [f, setF] = useState({ labId: labs[0]?.id ?? "", name: "", age: "", ageUnit: "year", gender: "", phone: "", priority: "routine", collection: "lab_visit", scheduledAt: "", notes: "" });
   const [codes, setCodes] = useState<string[]>([]);
+  const [q, setQ] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  useEffect(() => { void api<{ tests: CatalogTest[] }>("/api/catalog").then(d => setTests(d.tests.filter(t => t.active))).catch(() => undefined); }, []);
+  const toggle = (code: string) => setCodes(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]);
+  // Every word must appear in the name or code, so "glucose fast" finds "Glucose Fasting; (FBS)".
+  const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = words.length ? tests.filter(t => { const hay = `${t.name} ${t.code}`.toLowerCase(); return words.every(w => hay.includes(w)); }) : tests;
+  useEffect(() => {
+    void api<{ tests: CatalogTest[] }>("/api/portal/cases/test-options")
+      .then(d => setTests(d.tests.filter(t => t.active)))
+      .catch(e => setError(e instanceof Error ? e.message : "Could not load tests."));
+  }, []);
   useEffect(() => { if (!f.labId && labs[0]) setF(prev => ({ ...prev, labId: labs[0].id })); }, [labs]);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
 
@@ -66,10 +76,23 @@ function SendCaseForm({ labs, onSent }: { labs: PortalLab[]; onSent: () => void 
       <label className="field full"><span>Note for the lab</span><input value={f.notes} onChange={set("notes")} /></label>
     </div>
     <div className="trace-subhead">Tests * ({codes.length} selected)</div>
-    <div className="test-pick">{tests.map(t => <label key={t.code} className={codes.includes(t.code) ? "on" : ""}>
-      <input type="checkbox" checked={codes.includes(t.code)} onChange={() => setCodes(codes.includes(t.code) ? codes.filter(c => c !== t.code) : [...codes, t.code])} />
+    <div className="test-search-row">
+      <label className="corp-search test-search"><Search size={14} />
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search tests by name or code" aria-label="Search tests"
+          onKeyDown={e => { if (e.key === "Escape") setQ(""); }} />
+        {q && <button type="button" aria-label="Clear search" onClick={() => setQ("")}><X size={13} /></button>}
+      </label>
+      <small>{q ? `${shown.length} of ${tests.length} tests` : `${tests.length} tests`}</small>
+    </div>
+    {codes.length > 0 && <div className="test-chosen">{tests.filter(t => codes.includes(t.code)).map(t => <span key={t.code}>
       {t.name} <small>{t.code}</small>
-    </label>)}</div>
+      <button type="button" aria-label={`Remove ${t.name}`} onClick={() => toggle(t.code)}><X size={12} /></button>
+    </span>)}</div>}
+    {shown.length === 0 ? <p className="test-empty">No test matches "{q}".</p> :
+      <div className="test-pick">{shown.map(t => <label key={t.code} className={codes.includes(t.code) ? "on" : ""}>
+        <input type="checkbox" checked={codes.includes(t.code)} onChange={() => toggle(t.code)} />
+        {t.name} <small>{t.code}</small>
+      </label>)}</div>}
     {error && <div className="access-message error"><X size={16} />{error}</div>}
     <div className="builder-actions">
       <Button variant="default" disabled={busy || !f.labId || f.name.trim().length < 2 || f.age === "" || !f.gender || !codes.length} onClick={() => void send()}><Send size={15} /> {busy ? "Sending…" : "Send to lab"}</Button>
@@ -128,6 +151,8 @@ export function AdminLabsUsers({ me }: { me: PortalUser }) {
       </button>
       {labs.map(l => <div key={l.id} className={`lab-tile ${selected === l.id ? "on" : ""} ${l.active ? "" : "paused"}`} role="button" tabIndex={0} onClick={() => setSelected(l.id)} onKeyDown={e => { if (e.key === "Enter") setSelected(l.id); }}>
         <b>{l.name}</b><small>{l.code}{l.city ? ` · ${l.city}` : ""}</small>
+        <WorkspaceTag workspace={l.workspace} />
+        <CreatedBy creator={l.creator} />
         <small>{l.users ?? 0} user(s) · {l.openCases ?? 0} open case(s){l.unseen ? ` · ${l.unseen} new update(s)` : ""}</small>
         <span className={`access-status ${l.active ? "active" : "revoked"}`}>{l.active ? "active" : "paused"}</span>
         <Button variant="outline" size="sm" onClick={e => { e.stopPropagation(); void toggle(l); }}>{l.active ? "Pause" : "Resume"}</Button>

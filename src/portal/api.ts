@@ -1,9 +1,15 @@
 // Small fetch helpers for the Lab Portal. Session cookie is sent automatically (same origin).
 
+import type { PageId } from "../lib/admin-pages";
+import type { CreatorData, WorkspaceTagData } from "../lib/record-tags";
+
 export type Role = "healjour_admin" | "lab_admin" | "lab_staff" | "lab_viewer";
-export type PortalUser = { id: string; email: string; name: string; role: Role; labId: string | null; active: boolean; mustChangePassword: boolean; lastLoginAt?: string; createdAt: string; isSuperAdmin?: boolean; adminRoleId?: string };
-export type PortalLab = { id: string; code: string; name: string; city?: string; contactEmail?: string; active: boolean; users?: number; openCases?: number; unseen?: number };
-export type AuthState = { setupNeeded: boolean; setupKeyRequired: boolean; user: PortalUser | null; lab: PortalLab | null; permissions: string[]; modules?: string[]; adminPermissions?: string[]; superAdmin?: boolean };
+export type PortalUser = { id: string; email: string; name: string; role: Role; labId: string | null; active: boolean; mustChangePassword: boolean; lastLoginAt?: string; createdAt: string; isSuperAdmin?: boolean; adminRoleId?: string; workspaceIds?: string[]; creator?: CreatorData; workspace?: WorkspaceTagData };
+export type WorkspaceRef = { id: string; code: string; name: string };
+export type PortalLab = { id: string; code: string; name: string; city?: string; contactEmail?: string; active: boolean; users?: number; openCases?: number; unseen?: number; creator?: CreatorData; workspace?: WorkspaceTagData };
+export type AuthState = { setupNeeded: boolean; setupKeyRequired: boolean; user: PortalUser | null; lab: PortalLab | null; permissions: string[]; modules?: string[]; pages?: PageId[]; adminPermissions?: string[]; superAdmin?: boolean;
+  workspaces?: WorkspaceRef[]; activeWorkspaceId?: string | null; workspaceScoped?: boolean; storageUnavailable?: boolean;
+  impersonation?: { by: { id: string; name: string; email: string }; reason: string; expiresAt: string } | null };
 
 export type CaseStatus = "new" | "accepted" | "sample_collected" | "processing" | "report_ready" | "completed" | "rejected" | "cancelled";
 export type CaseSummary = {
@@ -11,6 +17,7 @@ export type CaseSummary = {
   patient: { name: string; age: number; ageUnit: string; gender: string; phone?: string; healjourId?: string };
   tests: Array<{ code: string; name: string }>; priority: string; collection: string; scheduledAt?: string;
   status: CaseStatus; reportCount: number; resultCount: number; createdAt: string; updatedAt: string; lastLabUpdateAt?: string; unseen: boolean;
+  creator?: CreatorData; workspace?: WorkspaceTagData;
 };
 export type ResultRow = { testCode: string; testName: string; value: string; unit: string; referenceRange: string; flag: "" | "normal" | "low" | "high" | "abnormal" };
 export type LabCase = Omit<CaseSummary, "reportCount" | "resultCount" | "unseen"> & {
